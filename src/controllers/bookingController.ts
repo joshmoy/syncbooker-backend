@@ -1,4 +1,4 @@
-import { Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Booking, BookingStatus } from "../entities/Booking";
 import { EventType } from "../entities/EventType";
@@ -8,7 +8,7 @@ import { AppError } from "../middleware/errorHandler";
 import { addMinutes, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 
 export const createBooking = async (
-  req: Request | AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -318,5 +318,3 @@ export const getAvailableSlots = async (
     next(error);
   }
 };
-
-

@@ -1,4 +1,4 @@
-import { Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import { AppDataSource } from "../config/data-source";
 import { EventType } from "../entities/EventType";
 import { AuthRequest } from "../middleware/auth";
@@ -139,4 +139,42 @@ export const deleteEventType = async (
   }
 };
 
+export const getPublicEventType = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const eventTypeRepository = AppDataSource.getRepository(EventType);
 
+    const eventType = await eventTypeRepository.findOne({
+      where: { id },
+      relations: ["user"],
+    });
+
+    if (!eventType) {
+      throw new AppError("Event type not found", 404);
+    }
+
+    // Return public-safe event type information
+    res.json({
+      eventType: {
+        id: eventType.id,
+        title: eventType.title,
+        description: eventType.description,
+        durationMinutes: eventType.durationMinutes,
+        color: eventType.color,
+        createdAt: eventType.createdAt,
+        updatedAt: eventType.updatedAt,
+        // Include minimal user info (optional - can be removed if privacy is a concern)
+        user: {
+          name: eventType.user.name,
+          username: eventType.user.username,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

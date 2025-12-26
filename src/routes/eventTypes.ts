@@ -20,5 +20,3 @@ router.put("/:id", updateEventType);
 router.delete("/:id", deleteEventType);
 
 export default router;
-
-
