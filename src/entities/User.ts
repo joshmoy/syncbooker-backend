@@ -12,37 +12,37 @@ import { Availability } from "./Availability";
 @Entity("users")
 export class User {
   @PrimaryGeneratedColumn("uuid")
-  id: string;
+  id!: string;
 
   @Column({ type: "varchar", length: 255 })
-  name: string;
+  name!: string;
 
   @Column({ type: "varchar", length: 255, unique: true })
-  email: string;
+  email!: string;
 
   @Column({ type: "varchar", length: 255 })
-  passwordHash: string;
+  passwordHash!: string;
 
   @Column({ type: "varchar", length: 100, nullable: true, unique: true })
-  username: string;
+  username!: string | null;
 
   @Column({ type: "text", nullable: true })
-  displayPicture: string; // URL or base64 string
+  displayPicture!: string | null;
 
   @Column({ type: "text", nullable: true })
-  banner: string; // URL or base64 string
+  banner!: string | null;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   @OneToMany(() => EventType, (eventType) => eventType.user)
-  eventTypes: EventType[];
+  eventTypes!: EventType[];
 
   @OneToMany(() => Availability, (availability) => availability.user)
-  availabilities: Availability[];
+  availabilities!: Availability[];
 }
 
 

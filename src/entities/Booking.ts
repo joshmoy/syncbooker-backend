@@ -18,42 +18,42 @@ export enum BookingStatus {
 @Entity("bookings")
 export class Booking {
   @PrimaryGeneratedColumn("uuid")
-  id: string;
+  id!: string;
 
   @Column({ type: "uuid" })
-  eventTypeId: string;
+  eventTypeId!: string;
 
   @ManyToOne(() => EventType, (eventType) => eventType.bookings)
   @JoinColumn({ name: "eventTypeId" })
-  eventType: EventType;
+  eventType!: EventType;
 
   @Column({ type: "varchar", length: 255 })
-  inviteeName: string;
+  inviteeName!: string;
 
   @Column({ type: "varchar", length: 255 })
-  inviteeEmail: string;
+  inviteeEmail!: string;
 
   @Column({ type: "timestamp" })
-  startTime: Date;
+  startTime!: Date;
 
   @Column({ type: "timestamp" })
-  endTime: Date;
+  endTime!: Date;
 
   @Column({
     type: "enum",
     enum: BookingStatus,
     default: BookingStatus.CONFIRMED,
   })
-  status: BookingStatus;
+  status!: BookingStatus;
 
   @Column({ type: "text", nullable: true })
-  notes: string;
+  notes!: string | null;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }
 
 

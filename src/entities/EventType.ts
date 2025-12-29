@@ -14,35 +14,35 @@ import { Booking } from "./Booking";
 @Entity("event_types")
 export class EventType {
   @PrimaryGeneratedColumn("uuid")
-  id: string;
+  id!: string;
 
   @Column({ type: "uuid" })
-  userId: string;
+  userId!: string;
 
   @ManyToOne(() => User, (user) => user.eventTypes)
   @JoinColumn({ name: "userId" })
-  user: User;
+  user!: User;
 
   @Column({ type: "varchar", length: 255 })
-  title: string;
+  title!: string;
 
   @Column({ type: "text", nullable: true })
-  description: string;
+  description!: string | null;
 
   @Column({ type: "int" })
-  durationMinutes: number;
+  durationMinutes!: number;
 
   @Column({ type: "varchar", length: 100, nullable: true })
-  color: string;
+  color!: string | null;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   @OneToMany(() => Booking, (booking) => booking.eventType)
-  bookings: Booking[];
+  bookings!: Booking[];
 }
 
 
