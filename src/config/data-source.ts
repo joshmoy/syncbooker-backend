@@ -20,6 +20,9 @@ export const AppDataSource = new DataSource({
   migrations: ["src/migrations/**/*.ts"],
   subscribers: ["src/subscribers/**/*.ts"],
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  extra: {
+    // Prefer IPv4 to avoid routing issues between Railway and Supabase IPv6 endpoints
+    // This helps when there are network routing problems even if IPv6 is supported
+    family: 4,
+  },
 });
-
-
