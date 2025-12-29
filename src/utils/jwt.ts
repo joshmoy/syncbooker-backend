@@ -9,7 +9,7 @@ export const generateToken = (userId: string): string => {
   const expiresIn = process.env.JWT_EXPIRES_IN || "7d";
   
   return jwt.sign({ userId }, secret, {
-    expiresIn: expiresIn as string | number,
+    expiresIn: expiresIn as any,
   });
 };
 
