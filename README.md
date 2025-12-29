@@ -42,6 +42,7 @@ Edit `.env` and fill in your configuration:
 
 - Database connection details (Supabase)
 - JWT secret
+- Supabase Storage configuration (SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_DISPLAY_PICTURE_BUCKET, SUPABASE_BANNER_BUCKET)
 - Email configuration (optional)
 - Google Calendar API credentials (optional)
 
@@ -104,6 +105,15 @@ src/
 - `GET /api/bookings/:id` - Get booking by ID (protected)
 - `PUT /api/bookings/:id` - Update booking (protected)
 - `DELETE /api/bookings/:id` - Delete booking (protected)
+
+### Settings (Protected)
+
+- `GET /api/settings` - Get user settings
+- `PUT /api/settings` - Update user settings (name, username, password)
+- `POST /api/settings/upload/display-picture` - Upload display picture
+- `POST /api/settings/upload/banner` - Upload banner
+- `DELETE /api/settings/display-picture` - Remove display picture
+- `DELETE /api/settings/banner` - Remove banner
 
 ## 🔐 Authentication
 

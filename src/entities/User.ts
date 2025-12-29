@@ -26,6 +26,12 @@ export class User {
   @Column({ type: "varchar", length: 100, nullable: true, unique: true })
   username: string;
 
+  @Column({ type: "text", nullable: true })
+  displayPicture: string; // URL or base64 string
+
+  @Column({ type: "text", nullable: true })
+  banner: string; // URL or base64 string
+
   @CreateDateColumn()
   createdAt: Date;
 

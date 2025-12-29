@@ -47,6 +47,8 @@ export const register = async (req: Request, res: Response, next: NextFunction):
         name: user.name,
         email: user.email,
         username: user.username,
+        displayPicture: user.displayPicture,
+        banner: user.banner,
       },
       token,
     });
@@ -89,6 +91,8 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
         name: user.name,
         email: user.email,
         username: user.username,
+        displayPicture: user.displayPicture,
+        banner: user.banner,
       },
       token,
     });
