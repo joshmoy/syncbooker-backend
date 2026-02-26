@@ -6,6 +6,7 @@ import { ResetToken } from "../entities/ResetToken";
 import { AppError } from "../middleware/errorHandler";
 import { generateToken } from "../utils/jwt";
 import { generateResetToken, hashResetToken } from "../utils/resetToken";
+import { emailService } from "../utils/email";
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -41,6 +42,9 @@ export const register = async (req: Request, res: Response, next: NextFunction):
 
     // Generate token
     const token = generateToken(user.id);
+
+    // Send welcome email
+    await emailService.sendWelcomeEmail(user.email, user.name);
 
     res.status(201).json({
       message: "User registered successfully",
@@ -153,8 +157,10 @@ export const forgotPassword = async (
 
     await resetTokenRepository.save(tokenRecord);
 
-    // TODO: Send email with reset link
-    // For now, log the token (REMOVE IN PRODUCTION!)
+    // Send email with reset link
+    await emailService.sendPasswordResetEmail(user.email, resetToken);
+
+    // For debugging, log the token (REMOVE IN PRODUCTION!)
     console.log("Password reset token for", email, ":", resetToken);
     console.log(
       "Reset link:",

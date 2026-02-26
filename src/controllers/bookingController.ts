@@ -7,6 +7,7 @@ import { Availability } from "../entities/Availability";
 import { AuthRequest } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { addMinutes, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
+import { emailService } from "../utils/email";
 
 export const createBooking = async (
   req: Request,
@@ -62,6 +63,24 @@ export const createBooking = async (
 
     await bookingRepository.save(booking);
 
+    // Send email notification to user
+    await emailService.sendBookingRequestEmail(
+      eventType.user.email,
+      eventType.user.name,
+      inviteeName,
+      eventType.title,
+      start
+    );
+
+    // Send email notification to invitee (visitor)
+    await emailService.sendBookingRequestReceivedEmail(
+      inviteeEmail,
+      inviteeName,
+      eventType.user.name,
+      eventType.title,
+      start
+    );
+
     res.status(201).json({
       message: "Booking requested successfully. Please wait for approval.",
       booking,
@@ -86,6 +105,11 @@ export const getBookings = async (
     });
 
     const eventTypeIds = eventTypes.map((et) => et.id);
+
+    if (eventTypeIds.length === 0) {
+      res.json({ bookings: [] });
+      return;
+    }
 
     const bookings = await bookingRepository.find({
       where: eventTypeIds.map((id) => ({ eventTypeId: id })),
@@ -166,7 +190,28 @@ export const updateBooking = async (
       if (!Object.values(BookingStatus).includes(status)) {
         throw new AppError("Invalid booking status", 400);
       }
+      
+      const oldStatus = booking.status;
       booking.status = status;
+
+      // Send email notifications based on status change
+      if (oldStatus === BookingStatus.PENDING && status === BookingStatus.CONFIRMED) {
+        await emailService.sendBookingConfirmedEmail(
+          booking.inviteeEmail,
+          booking.inviteeName,
+          eventType.user.name,
+          booking.eventType.title,
+          booking.startTime
+        );
+      } else if (status === BookingStatus.CANCELLED) {
+        await emailService.sendBookingRejectedEmail(
+          booking.inviteeEmail,
+          booking.inviteeName,
+          eventType.user.name,
+          booking.eventType.title,
+          booking.startTime
+        );
+      }
     }
     if (notes !== undefined) booking.notes = notes;
 
@@ -211,6 +256,15 @@ export const deleteBooking = async (
     // Instead of removing, update status to CANCELLED
     booking.status = BookingStatus.CANCELLED;
     await bookingRepository.save(booking);
+
+    // Send cancellation email to invitee
+    await emailService.sendBookingRejectedEmail(
+      booking.inviteeEmail,
+      booking.inviteeName,
+      eventType.user.name,
+      eventType.title,
+      booking.startTime
+    );
 
     res.json({ message: "Booking cancelled successfully", booking });
   } catch (error) {
