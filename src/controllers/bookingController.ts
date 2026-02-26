@@ -170,7 +170,7 @@ export const updateBooking = async (
 
     const booking = await bookingRepository.findOne({
       where: { id },
-      relations: ["eventType"],
+      relations: ["eventType", "eventType.user"],
     });
 
     if (!booking) {
@@ -199,7 +199,7 @@ export const updateBooking = async (
         await emailService.sendBookingConfirmedEmail(
           booking.inviteeEmail,
           booking.inviteeName,
-          eventType.user.name,
+          booking.eventType.user.name,
           booking.eventType.title,
           booking.startTime
         );
@@ -207,7 +207,7 @@ export const updateBooking = async (
         await emailService.sendBookingRejectedEmail(
           booking.inviteeEmail,
           booking.inviteeName,
-          eventType.user.name,
+          booking.eventType.user.name,
           booking.eventType.title,
           booking.startTime
         );
@@ -238,6 +238,7 @@ export const deleteBooking = async (
 
     const booking = await bookingRepository.findOne({
       where: { id },
+      relations: ["eventType", "eventType.user"],
     });
 
     if (!booking) {

@@ -41,7 +41,9 @@ export const emailService = {
           to: {
             address: options.to,
           },
-          reply_to: EMAIL_FROM_ADDRESS,
+          reply_to: {
+            address: EMAIL_FROM_ADDRESS,
+          },
           subject: options.subject,
           html: options.html,
           plain: options.text || options.html.replace(/<[^>]*>/g, ""),
