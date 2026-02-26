@@ -12,6 +12,7 @@ import availabilityRoutes from "./routes/availability";
 import bookingRoutes from "./routes/bookings";
 import settingsRoutes from "./routes/settings";
 import publicRoutes from "./routes/public";
+import dashboardRoutes from "./routes/dashboard";
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.use("/api/event-types", eventTypeRoutes);
 app.use("/api/availability", availabilityRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Public routes (no auth required)
 app.use("/api/public", publicRoutes);
