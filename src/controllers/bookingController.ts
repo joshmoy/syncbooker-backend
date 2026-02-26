@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { In } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Booking, BookingStatus } from "../entities/Booking";
 import { EventType } from "../entities/EventType";
@@ -35,17 +36,17 @@ export const createBooking = async (
     const start = new Date(startTime);
     const end = addMinutes(start, eventType.durationMinutes);
 
-    // Check for conflicts
+    // Check for conflicts (both CONFIRMED and PENDING bookings reserve the slot)
     const conflictingBooking = await bookingRepository.findOne({
       where: {
         eventTypeId,
         startTime: start,
-        status: BookingStatus.CONFIRMED,
+        status: In([BookingStatus.CONFIRMED, BookingStatus.PENDING]),
       },
     });
 
     if (conflictingBooking) {
-      throw new AppError("This time slot is already booked", 409);
+      throw new AppError("This time slot is already booked or pending approval", 409);
     }
 
     // Create booking
@@ -55,14 +56,14 @@ export const createBooking = async (
       inviteeEmail,
       startTime: start,
       endTime: end,
-      status: BookingStatus.CONFIRMED,
+      status: BookingStatus.PENDING,
       notes,
     });
 
     await bookingRepository.save(booking);
 
     res.status(201).json({
-      message: "Booking created successfully",
+      message: "Booking requested successfully. Please wait for approval.",
       booking,
     });
   } catch (error) {
@@ -207,9 +208,11 @@ export const deleteBooking = async (
       throw new AppError("Unauthorized", 403);
     }
 
-    await bookingRepository.remove(booking);
+    // Instead of removing, update status to CANCELLED
+    booking.status = BookingStatus.CANCELLED;
+    await bookingRepository.save(booking);
 
-    res.json({ message: "Booking deleted successfully" });
+    res.json({ message: "Booking cancelled successfully", booking });
   } catch (error) {
     next(error);
   }
@@ -227,9 +230,9 @@ export const getPublicBookings = async (
     const bookings = await bookingRepository.find({
       where: {
         eventTypeId,
-        status: BookingStatus.CONFIRMED,
+        status: In([BookingStatus.CONFIRMED, BookingStatus.PENDING]),
       },
-      select: ["startTime", "endTime"],
+      select: ["id", "startTime", "endTime", "status"],
       order: { startTime: "ASC" },
     });
 
@@ -272,11 +275,11 @@ export const getAvailableSlots = async (
       return;
     }
 
-    // Get existing bookings
+    // Get existing bookings (both CONFIRMED and PENDING reserve the slot)
     const bookings = await bookingRepository.find({
       where: {
         eventTypeId,
-        status: BookingStatus.CONFIRMED,
+        status: In([BookingStatus.CONFIRMED, BookingStatus.PENDING]),
       },
     });
 

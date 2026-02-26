@@ -14,6 +14,8 @@ router.use(authenticateToken);
 
 router.get("/", getBookings);
 router.get("/:id", getBookingById);
+router.patch("/:id/approve", updateBooking); // We'll use updateBooking for now or add specific ones
+router.patch("/:id/reject", updateBooking);
 router.put("/:id", updateBooking);
 router.delete("/:id", deleteBooking);
 
