@@ -167,10 +167,12 @@ export const getPublicEventType = async (
         color: eventType.color,
         createdAt: eventType.createdAt,
         updatedAt: eventType.updatedAt,
-        // Include minimal user info (optional - can be removed if privacy is a concern)
+        // Include minimal user info
         user: {
           name: eventType.user.name,
           username: eventType.user.username,
+          displayPicture: eventType.user.displayPicture,
+          banner: eventType.user.banner,
         },
       },
     });
