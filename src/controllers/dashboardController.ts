@@ -2,8 +2,9 @@ import { Response, NextFunction } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Booking, BookingStatus } from "../entities/Booking";
 import { EventType } from "../entities/EventType";
+import { Visitor } from "../entities/Visitor";
 import { AuthRequest } from "../middleware/auth";
-import { startOfWeek, endOfWeek, subWeeks, isWithinInterval } from "date-fns";
+import { startOfWeek, endOfWeek, subWeeks, isWithinInterval, subDays } from "date-fns";
 
 export const getDashboardStats = async (
   req: AuthRequest,
@@ -14,6 +15,7 @@ export const getDashboardStats = async (
     const userId = req.userId!;
     const bookingRepository = AppDataSource.getRepository(Booking);
     const eventTypeRepository = AppDataSource.getRepository(EventType);
+    const visitorRepository = AppDataSource.getRepository(Visitor);
 
     // Get user's event types
     const eventTypes = await eventTypeRepository.find({
@@ -46,14 +48,6 @@ export const getDashboardStats = async (
     const weekStart = startOfWeek(now);
     const weekEnd = endOfWeek(now);
 
-    const weekBookings = await bookingRepository.count({
-      where: eventTypeIds.map((id) => ({
-        eventTypeId: id,
-        status: BookingStatus.CONFIRMED,
-        // We'll filter by date manually or use QueryBuilder for better performance
-      })),
-    });
-    
     // Using QueryBuilder for more complex date filtering
     const allBookings = await bookingRepository.createQueryBuilder("booking")
       .where("booking.eventTypeId IN (:...ids)", { ids: eventTypeIds })
@@ -82,19 +76,39 @@ export const getDashboardStats = async (
     const weekChange = currentWeekBookings - lastWeekBookings;
     const weekChangeStr = weekChange >= 0 ? `+${weekChange}` : `${weekChange}`;
 
-    // Unique visitors (mocked for now as we don't have a visitors table)
-    // In a real app, you'd track this. For now, we'll use unique invitee emails.
-    const uniqueInvitees = new Set(allBookings.map(b => b.inviteeEmail)).size;
+    // Real visitor tracking
+    const allVisitors = await visitorRepository.find({
+      where: { userId },
+    });
+
+    const uniqueVisitors = new Set(allVisitors.map(v => v.ipAddress)).size;
+    
+    // Calculate visitor change (this week vs last week)
+    const currentWeekVisitors = allVisitors.filter(v => 
+      isWithinInterval(new Date(v.createdAt), { start: weekStart, end: weekEnd })
+    ).length;
+    
+    const lastWeekVisitors = allVisitors.filter(v => 
+      isWithinInterval(new Date(v.createdAt), { start: lastWeekStart, end: lastWeekEnd })
+    ).length;
+    
+    let visitorChangeStr = "0%";
+    if (lastWeekVisitors > 0) {
+      const change = ((currentWeekVisitors - lastWeekVisitors) / lastWeekVisitors) * 100;
+      visitorChangeStr = `${change >= 0 ? "+" : ""}${change.toFixed(0)}%`;
+    } else if (currentWeekVisitors > 0) {
+      visitorChangeStr = "+100%";
+    }
 
     res.json({
       stats: {
         totalBookings,
         weekBookings: currentWeekBookings,
         eventTypesCount: eventTypes.length,
-        uniqueVisitors: uniqueInvitees,
+        uniqueVisitors,
         totalBookingsChange: totalChangeStr,
         weekBookingsChange: weekChangeStr,
-        uniqueVisitorsChange: "+0%", // Placeholder
+        uniqueVisitorsChange: visitorChangeStr,
       },
     });
   } catch (error) {
