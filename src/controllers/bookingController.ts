@@ -8,6 +8,7 @@ import { AuthRequest } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { addMinutes, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 import { emailService } from "../utils/email";
+import { googleCalendarService } from "../utils/google-calendar";
 
 export const createBooking = async (
   req: Request,
@@ -196,12 +197,34 @@ export const updateBooking = async (
 
       // Send email notifications based on status change
       if (oldStatus === BookingStatus.PENDING && status === BookingStatus.CONFIRMED) {
+        // Create Google Calendar event if user has connected their account
+        if (booking.eventType.user.googleRefreshToken) {
+          try {
+            const googleEvent = await googleCalendarService.createEvent(
+              booking.eventType.user.googleRefreshToken,
+              {
+                title: `${booking.eventType.title}: ${booking.inviteeName}`,
+                description: booking.notes || undefined,
+                startTime: new Date(booking.startTime),
+                endTime: new Date(booking.endTime),
+                inviteeEmail: booking.inviteeEmail,
+                inviteeName: booking.inviteeName,
+              }
+            );
+            booking.googleEventId = googleEvent.googleEventId || null;
+            booking.meetingLink = googleEvent.meetingLink || null;
+          } catch (error) {
+            console.error("Failed to create Google Calendar event:", error);
+          }
+        }
+
         await emailService.sendBookingConfirmedEmail(
           booking.inviteeEmail,
           booking.inviteeName,
           booking.eventType.user.name,
           booking.eventType.title,
-          booking.startTime
+          booking.startTime,
+          booking.meetingLink || undefined // Pass meeting link to email
         );
       } else if (status === BookingStatus.CANCELLED) {
         await emailService.sendBookingRejectedEmail(
@@ -257,6 +280,18 @@ export const deleteBooking = async (
     // Instead of removing, update status to CANCELLED
     booking.status = BookingStatus.CANCELLED;
     await bookingRepository.save(booking);
+
+    // Delete Google Calendar event if it exists
+    if (booking.eventType.user.googleRefreshToken && booking.googleEventId) {
+      try {
+        await googleCalendarService.deleteEvent(
+          booking.eventType.user.googleRefreshToken,
+          booking.googleEventId
+        );
+      } catch (error) {
+        console.error("Failed to delete Google Calendar event:", error);
+      }
+    }
 
     // Send cancellation email to invitee
     await emailService.sendBookingRejectedEmail(

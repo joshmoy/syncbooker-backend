@@ -49,6 +49,12 @@ export class Booking {
   @Column({ type: "text", nullable: true })
   notes!: string | null;
 
+  @Column({ type: "varchar", length: 255, nullable: true })
+  meetingLink!: string | null;
+
+  @Column({ type: "varchar", length: 255, nullable: true })
+  googleEventId!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 

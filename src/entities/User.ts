@@ -32,6 +32,9 @@ export class User {
   @Column({ type: "text", nullable: true })
   banner!: string | null;
 
+  @Column({ type: "text", nullable: true })
+  googleRefreshToken!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 

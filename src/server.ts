@@ -13,6 +13,7 @@ import bookingRoutes from "./routes/bookings";
 import settingsRoutes from "./routes/settings";
 import publicRoutes from "./routes/public";
 import dashboardRoutes from "./routes/dashboard";
+import googleRoutes from "./routes/google";
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use("/api/availability", availabilityRoutes);
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/google", googleRoutes);
 
 // Public routes (no auth required)
 app.use("/api/public", publicRoutes);

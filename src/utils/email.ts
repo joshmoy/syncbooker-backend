@@ -137,7 +137,8 @@ export const emailService = {
     inviteeName: string,
     userName: string,
     eventTitle: string,
-    startTime: Date
+    startTime: Date,
+    meetingLink?: string
   ): Promise<void> {
     const dateStr = startTime.toLocaleString();
     const html = `
@@ -147,6 +148,7 @@ export const emailService = {
         <p>Your booking with <strong>${userName}</strong> for <strong>${eventTitle}</strong> has been confirmed.</p>
         <div style="background: #f4f4f4; padding: 15px; border-radius: 8px; margin: 20px 0;">
           <p><strong>Time:</strong> ${dateStr}</p>
+          ${meetingLink ? `<p><strong>Meeting Link:</strong> <a href="${meetingLink}">${meetingLink}</a></p>` : ""}
         </div>
         <p>We've added this to your calendar.</p>
       </div>
