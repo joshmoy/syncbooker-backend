@@ -6,7 +6,7 @@ import { EventType } from "../entities/EventType";
 import { Availability } from "../entities/Availability";
 import { AuthRequest } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
-import { addMinutes, isAfter, isBefore, isPast, startOfDay, endOfDay } from "date-fns";
+import { addMinutes, isAfter, isBefore, isPast } from "date-fns";
 import { emailService } from "../utils/email";
 import { googleCalendarService } from "../utils/google-calendar";
 import { generateMeetingLink } from "../services/meetingLinkService";
@@ -425,37 +425,70 @@ export const getAvailableSlots = async (
       },
     });
 
-    // Calculate available slots
+    const now = new Date();
+    const rangeStart = startDate ? new Date(startDate as string) : now;
+    const rangeEnd = endDate
+      ? new Date(endDate as string)
+      : addMinutes(rangeStart, 30 * 24 * 60); // 30 days
+
+    // Group availabilities by day of week (a day can have multiple windows)
+    const availabilityByDay = new Map<number, Availability[]>();
+    for (const avail of availabilities) {
+      if (!availabilityByDay.has(avail.dayOfWeek)) {
+        availabilityByDay.set(avail.dayOfWeek, []);
+      }
+      availabilityByDay.get(avail.dayOfWeek)!.push(avail);
+    }
+
     const slots: { startTime: Date; endTime: Date }[] = [];
-    const start = startDate ? new Date(startDate as string) : new Date();
-    const end = endDate ? new Date(endDate as string) : addMinutes(start, 30 * 24 * 60); // 30 days
 
-    // Simple slot generation logic (can be enhanced)
-    // This is a basic implementation - you'd want to make this more sophisticated
-    for (let date = start; date <= end; date = addMinutes(date, 24 * 60)) {
-      const dayOfWeek = date.getDay();
-      const dayAvailability = availabilities.find((a) => a.dayOfWeek === dayOfWeek);
+    // Start from the beginning of rangeStart day in UTC
+    const cursor = new Date(
+      Date.UTC(rangeStart.getUTCFullYear(), rangeStart.getUTCMonth(), rangeStart.getUTCDate())
+    );
 
-      if (dayAvailability) {
-        // Generate slots for this day
-        // This is simplified - you'd want proper time parsing and slot generation
-        const slotStart = new Date(date);
-        slotStart.setHours(9, 0, 0, 0); // Example: 9 AM
+    while (cursor <= rangeEnd) {
+      const dayOfWeek = cursor.getUTCDay();
+      const dayAvailabilities = availabilityByDay.get(dayOfWeek) ?? [];
 
-        const slotEnd = addMinutes(slotStart, eventType.durationMinutes);
+      for (const avail of dayAvailabilities) {
+        // Parse "HH:mm:ss" availability windows (stored in UTC)
+        const [startHour, startMin] = avail.startTime.split(":").map(Number);
+        const [endHour, endMin] = avail.endTime.split(":").map(Number);
 
-        // Check if slot conflicts with existing bookings
-        const hasConflict = bookings.some((booking) => {
-          return (
-            (isAfter(slotStart, booking.startTime) && isBefore(slotStart, booking.endTime)) ||
-            (isAfter(booking.startTime, slotStart) && isBefore(booking.startTime, slotEnd))
-          );
-        });
+        const windowStart = new Date(
+          Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), startHour, startMin, 0)
+        );
+        const windowEnd = new Date(
+          Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), endHour, endMin, 0)
+        );
 
-        if (!hasConflict && isAfter(slotStart, new Date())) {
-          slots.push({ startTime: slotStart, endTime: slotEnd });
+        // Generate slots that fit entirely within this availability window
+        let slotStart = new Date(windowStart);
+        while (slotStart < windowEnd) {
+          const slotEnd = addMinutes(slotStart, eventType.durationMinutes);
+
+          if (slotEnd > windowEnd) break; // slot doesn't fit
+
+          if (isAfter(slotStart, now)) {
+            // Proper overlap check: slot conflicts if slotStart < bookingEnd AND slotEnd > bookingStart
+            const hasConflict = bookings.some(
+              (b) =>
+                isBefore(slotStart, new Date(b.endTime)) &&
+                isAfter(slotEnd, new Date(b.startTime))
+            );
+
+            if (!hasConflict) {
+              slots.push({ startTime: new Date(slotStart), endTime: new Date(slotEnd) });
+            }
+          }
+
+          slotStart = addMinutes(slotStart, eventType.durationMinutes);
         }
       }
+
+      // Advance to next day
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
 
     res.json({ slots });
