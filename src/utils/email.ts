@@ -152,6 +152,36 @@ export const emailService = {
   },
 
   /**
+   * Template for Booking Rescheduled (to Invitee)
+   */
+  async sendBookingRescheduledEmail(
+    inviteeEmail: string,
+    inviteeName: string,
+    userName: string,
+    eventTitle: string,
+    newStartTime: Date,
+    meetingLink?: string
+  ): Promise<void> {
+    const dateStr = newStartTime.toLocaleString();
+    const html = emailTemplate(`
+      <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Your Meeting Has Been Rescheduled</h2>
+      <p style="margin: 0 0 12px; color: #333;">Hi ${inviteeName},</p>
+      <p style="margin: 0 0 20px; color: #333;">Your meeting with <strong>${userName}</strong> for <strong>${eventTitle}</strong> has been rescheduled to a new time.</p>
+      <div style="background: #f5f5f5; padding: 16px 20px; border-radius: 8px; margin: 0 0 24px;">
+        <p style="margin: 0 0 8px; color: #333;"><strong>New Time:</strong> ${dateStr}</p>
+        ${meetingLink ? `<p style="margin: 0; color: #333;"><strong>Meeting Link:</strong> <a href="${meetingLink}" style="color: #000;">${meetingLink}</a></p>` : ""}
+      </div>
+      ${meetingLink ? `<a href="${meetingLink}" style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">Join Meeting</a>` : `<p style="margin: 0; color: #333;">Please update your calendar accordingly.</p>`}
+    `);
+
+    await this.sendEmail({
+      to: inviteeEmail,
+      subject: `Rescheduled: Meeting with ${userName}`,
+      html,
+    });
+  },
+
+  /**
    * Template for Booking Confirmation (to Invitee)
    */
   async sendBookingConfirmedEmail(

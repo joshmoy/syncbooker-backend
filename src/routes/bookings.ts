@@ -6,6 +6,7 @@ import {
   updateBooking,
   deleteBooking,
   generateMeetingLinkForBooking,
+  rescheduleBooking,
 } from "../controllers/bookingController";
 
 const router = Router();
@@ -18,6 +19,7 @@ router.get("/:id", getBookingById);
 router.patch("/:id/approve", updateBooking);
 router.patch("/:id/reject", updateBooking);
 router.post("/:id/generate-meeting-link", generateMeetingLinkForBooking);
+router.patch("/:id/reschedule", rescheduleBooking);
 router.put("/:id", updateBooking);
 router.delete("/:id", deleteBooking);
 

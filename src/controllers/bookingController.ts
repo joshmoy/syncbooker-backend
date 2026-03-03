@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { In } from "typeorm";
+import { In, Not } from "typeorm";
 import { AppDataSource } from "../config/data-source";
 import { Booking, BookingStatus } from "../entities/Booking";
 import { EventType } from "../entities/EventType";
@@ -203,6 +203,7 @@ export const updateBooking = async (
 
       // Send email notifications based on status change
       if (oldStatus === BookingStatus.PENDING && status === BookingStatus.CONFIRMED) {
+        booking.confirmedAt = new Date();
         // Create Google Calendar event if user has connected their account
         if (booking.eventType.user.googleRefreshToken) {
           try {
@@ -492,6 +493,82 @@ export const getAvailableSlots = async (
     }
 
     res.json({ slots });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const rescheduleBooking = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { startTime } = req.body;
+
+    if (!startTime) {
+      throw new AppError("New start time is required", 400);
+    }
+
+    const bookingRepository = AppDataSource.getRepository(Booking);
+
+    const booking = await bookingRepository.findOne({
+      where: { id },
+      relations: ["eventType", "eventType.user"],
+    });
+
+    if (!booking) {
+      throw new AppError("Booking not found", 404);
+    }
+
+    if (booking.eventType.userId !== req.userId!) {
+      throw new AppError("Not authorized to reschedule this booking", 403);
+    }
+
+    if (booking.status === BookingStatus.CANCELLED) {
+      throw new AppError("Cannot reschedule a cancelled booking", 400);
+    }
+
+    const newStart = new Date(startTime);
+
+    if (isPast(newStart)) {
+      throw new AppError("Cannot reschedule to a past time", 400);
+    }
+
+    const newEnd = addMinutes(newStart, booking.eventType.durationMinutes);
+
+    // Check for conflicts with other bookings (excluding this one)
+    const conflict = await bookingRepository.findOne({
+      where: {
+        id: Not(id),
+        eventTypeId: booking.eventTypeId,
+        status: In([BookingStatus.CONFIRMED, BookingStatus.PENDING]),
+        startTime: newStart,
+      },
+    });
+
+    if (conflict) {
+      throw new AppError("This time slot is already booked", 409);
+    }
+
+    booking.startTime = newStart;
+    booking.endTime = newEnd;
+    booking.rescheduledAt = new Date();
+    booking.meetingReminderSentAt = null; // reset so reminder fires for the new time
+    await bookingRepository.save(booking);
+
+    // Notify invitee of the new time
+    await emailService.sendBookingRescheduledEmail(
+      booking.inviteeEmail,
+      booking.inviteeName,
+      booking.eventType.user.name,
+      booking.eventType.title,
+      newStart,
+      booking.meetingLink ?? undefined
+    );
+
+    res.json({ booking });
   } catch (error) {
     next(error);
   }

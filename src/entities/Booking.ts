@@ -56,6 +56,12 @@ export class Booking {
   googleEventId!: string | null;
 
   @Column({ type: "timestamp", nullable: true })
+  confirmedAt!: Date | null;
+
+  @Column({ type: "timestamp", nullable: true })
+  rescheduledAt!: Date | null;
+
+  @Column({ type: "timestamp", nullable: true })
   meetingReminderSentAt!: Date | null;
 
   @Column({ type: "timestamp", nullable: true })
