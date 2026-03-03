@@ -6,6 +6,7 @@ import {
   getAvailableSlots,
 } from "../controllers/bookingController";
 import { trackVisitor } from "../controllers/visitorController";
+import { bookingLimiter, visitorLimiter } from "../middleware/rateLimiter";
 
 const router = Router();
 
@@ -15,10 +16,10 @@ router.get("/event-type/:id", getPublicEventType);
 // Public Booking Routes
 router.get("/event-type/:eventTypeId/slots", getAvailableSlots);
 router.get("/event-type/:eventTypeId/bookings", getPublicBookings);
-router.post("/book", createBooking);
+router.post("/book", bookingLimiter, createBooking);
 
 // Visitor Tracking Route
-router.post("/track-visitor", trackVisitor);
+router.post("/track-visitor", visitorLimiter, trackVisitor);
 
 export default router;
 

@@ -15,6 +15,7 @@ import publicRoutes from "./routes/public";
 import dashboardRoutes from "./routes/dashboard";
 import googleRoutes from "./routes/google";
 import { startScheduler } from "./utils/scheduler";
+import { generalLimiter } from "./middleware/rateLimiter";
 
 dotenv.config();
 
@@ -36,6 +37,9 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
+
+// Apply general rate limiter to all API routes
+app.use("/api", generalLimiter);
 
 // API Routes
 app.use("/api/auth", authRoutes);
