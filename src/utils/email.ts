@@ -8,6 +8,7 @@ const MAILEROO_DOMAIN_ID = process.env.MAILEROO_DOMAIN_ID;
 const EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM || "noreply@syncbooker.anniversaryhelper.com";
 const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || "SyncBooker";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3001";
+const APP_DOMAIN = new URL(FRONTEND_URL).host;
 const LOGO_URL = process.env.EMAIL_LOGO_URL || `${FRONTEND_URL}/favicon/android-chrome-192x192.png`;
 
 function emailTemplate(content: string): string {
@@ -25,7 +26,7 @@ function emailTemplate(content: string): string {
         <!-- Footer -->
         <div style="padding: 20px 32px; border-top: 1px solid #eeeeee; text-align: center;">
           <p style="margin: 0; font-size: 12px; color: #999999;">
-            © ${new Date().getFullYear()} SyncBooker · <a href="${FRONTEND_URL}" style="color: #999999;">syncbooker.com</a>
+            © ${new Date().getFullYear()} SyncBooker · <a href="${FRONTEND_URL}" style="color: #999999;">${APP_DOMAIN}</a>
           </p>
         </div>
       </div>
