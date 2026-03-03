@@ -9,6 +9,7 @@ import { AppError } from "../middleware/errorHandler";
 import { addMinutes, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 import { emailService } from "../utils/email";
 import { googleCalendarService } from "../utils/google-calendar";
+import { generateMeetingLink } from "../services/meetingLinkService";
 
 export const createBooking = async (
   req: Request,
@@ -193,6 +194,7 @@ export const updateBooking = async (
       }
       
       const oldStatus = booking.status;
+      
       booking.status = status;
 
       // Send email notifications based on status change
@@ -244,6 +246,44 @@ export const updateBooking = async (
       message: "Booking updated successfully",
       booking,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const generateMeetingLinkForBooking = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const bookingRepository = AppDataSource.getRepository(Booking);
+    const eventTypeRepository = AppDataSource.getRepository(EventType);
+
+    const booking = await bookingRepository.findOne({
+      where: { id },
+      relations: ["eventType", "eventType.user"],
+    });
+
+    if (!booking) {
+      throw new AppError("Booking not found", 404);
+    }
+
+    const eventType = await eventTypeRepository.findOne({
+      where: { id: booking.eventTypeId, userId: req.userId! },
+    });
+
+    if (!eventType) {
+      throw new AppError("Unauthorized", 403);
+    }
+
+    const result = await generateMeetingLink(booking);
+    booking.googleEventId = result.googleEventId;
+    booking.meetingLink = result.meetingLink;
+    await bookingRepository.save(booking);
+
+    res.json({ booking });
   } catch (error) {
     next(error);
   }

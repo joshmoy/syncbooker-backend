@@ -5,6 +5,7 @@ import {
   getBookingById,
   updateBooking,
   deleteBooking,
+  generateMeetingLinkForBooking,
 } from "../controllers/bookingController";
 
 const router = Router();
@@ -14,8 +15,9 @@ router.use(authenticateToken);
 
 router.get("/", getBookings);
 router.get("/:id", getBookingById);
-router.patch("/:id/approve", updateBooking); // We'll use updateBooking for now or add specific ones
+router.patch("/:id/approve", updateBooking);
 router.patch("/:id/reject", updateBooking);
+router.post("/:id/generate-meeting-link", generateMeetingLinkForBooking);
 router.put("/:id", updateBooking);
 router.delete("/:id", deleteBooking);
 

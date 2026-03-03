@@ -627,6 +627,133 @@ async function updateBooking(bookingId: string, data: UpdateBookingRequest, toke
 
 ---
 
+### 6a. Generate Meeting Link
+
+After a booking has been confirmed, the host can request a Google Meet link to be created. This endpoint does not require any request body—just call it with the booking ID.
+
+**Endpoint:** `POST /api/bookings/:id/generate-meeting-link`
+
+**URL Parameters:**
+
+- `id` (string, required) – UUID of the booking
+
+**Headers:**
+
+```
+Authorization: Bearer <token>
+```
+
+**Success Response:** `200 OK`
+
+```json
+{
+  "booking": {
+    "id": "660e8400-e29b-41d4-a716-446655440001",
+    "meetingLink": "https://meet.google.com/xyz-abcj-123",
+    …other booking fields…
+  }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` – booking is not confirmed, already has a link, or Google Calendar is not connected.
+- `404 Not Found` – booking does not exist.
+- `403 Forbidden` – user does not own the booking’s event type.
+
+**cURL Example:**
+
+```bash
+curl -X POST http://localhost:3000/api/bookings/660e8400-e29b-41d4-a716-446655440001/generate-meeting-link \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+**JavaScript/TypeScript Example:**
+
+```typescript
+async function generateMeetingLink(bookingId: string, token: string) {
+  const response = await fetch(`/api/bookings/${bookingId}/generate-meeting-link`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to generate meeting link");
+  }
+
+  return response.json();
+}
+```
+
+---
+
+
+---
+
+### 6a. Generate Meeting Link
+
+After a booking has been confirmed, the host can request that a Google Meet link be generated for the event. This hit the same controller as the update endpoint but uses a dedicated POST route; no body parameters are required.
+
+**Endpoint:** `POST /api/bookings/:id/generate-meeting-link`
+
+**URL Parameters:**
+
+- `id` (string, required) – UUID of the booking
+
+**Headers:**
+
+```
+Authorization: Bearer <token>
+```
+
+**Success Response:** `200 OK`
+
+```json
+{
+  "booking": {
+    "id": "660e8400-e29b-41d4-a716-446655440001",
+    "meetingLink": "https://meet.google.com/xyz-abcj-123",
+    …other booking fields…
+  }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` – booking is not confirmed, already has a link, or Google Calendar has not been connected.
+- `404 Not Found` – booking does not exist.
+- `403 Forbidden` – user does not own the booking’s event type.
+
+**cURL Example:**
+
+```bash
+curl -X POST http://localhost:3000/api/bookings/660e8400-e29b-41d4-a716-446655440001/generate-meeting-link \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+**JavaScript/TypeScript Example:**
+
+```typescript
+async function generateMeetingLink(bookingId: string, token: string) {
+  const response = await fetch(`/api/bookings/${bookingId}/generate-meeting-link`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to generate meeting link");
+  }
+
+  return response.json();
+}
+```
+
 ### 7. Delete Booking
 
 Delete a booking. User must own the event type associated with the booking.

@@ -56,9 +56,13 @@ export const googleCalendarService = {
       conferenceDataVersion: 1,
     });
 
+    // Google Meet links are sometimes in hangoutLink or conferenceData
+    const meetingLink = response.data.hangoutLink || 
+                        (response.data.conferenceData?.entryPoints?.find(ep => ep.entryPointType === "video")?.uri);
+
     return {
       googleEventId: response.data.id,
-      meetingLink: response.data.hangoutLink,
+      meetingLink: meetingLink,
     };
   },
 
