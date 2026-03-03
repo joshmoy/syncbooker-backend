@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { In, Not } from "typeorm";
+import { v4 as uuidv4 } from "uuid";
 import { AppDataSource } from "../config/data-source";
 import { Booking, BookingStatus } from "../entities/Booking";
 import { EventType } from "../entities/EventType";
@@ -61,6 +62,7 @@ export const createBooking = async (
       endTime: end,
       status: BookingStatus.PENDING,
       notes,
+      cancelToken: uuidv4(),
     });
 
     await bookingRepository.save(booking);
@@ -81,6 +83,7 @@ export const createBooking = async (
       eventType.user.name,
       eventType.title,
       start,
+      booking.cancelToken!,
     );
 
     res.status(201).json({
@@ -231,7 +234,8 @@ export const updateBooking = async (
           booking.eventType.user.name,
           booking.eventType.title,
           booking.startTime,
-          booking.meetingLink || undefined, // Pass meeting link to email
+          booking.meetingLink || undefined,
+          booking.cancelToken || undefined,
         );
       } else if (status === BookingStatus.CANCELLED) {
         await emailService.sendBookingRejectedEmail(
@@ -569,6 +573,63 @@ export const rescheduleBooking = async (
     );
 
     res.json({ booking });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const cancelBookingByToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { cancelToken } = req.params;
+    const bookingRepository = AppDataSource.getRepository(Booking);
+
+    const booking = await bookingRepository.findOne({
+      where: { cancelToken },
+      relations: ["eventType", "eventType.user"],
+    });
+
+    if (!booking) {
+      throw new AppError("Invalid or expired cancellation link", 404);
+    }
+
+    if (booking.status === BookingStatus.CANCELLED) {
+      res.json({ message: "This booking has already been cancelled.", booking });
+      return;
+    }
+
+    if (isPast(new Date(booking.startTime))) {
+      throw new AppError("Cannot cancel a booking that has already passed", 400);
+    }
+
+    booking.status = BookingStatus.CANCELLED;
+    await bookingRepository.save(booking);
+
+    // Delete Google Calendar event if it exists
+    if (booking.eventType.user.googleRefreshToken && booking.googleEventId) {
+      try {
+        await googleCalendarService.deleteEvent(
+          booking.eventType.user.googleRefreshToken,
+          booking.googleEventId,
+        );
+      } catch (err) {
+        console.error("Failed to delete Google Calendar event:", err);
+      }
+    }
+
+    // Notify host of the cancellation
+    await emailService.sendBookingRejectedEmail(
+      booking.eventType.user.email,
+      booking.eventType.user.name,
+      booking.inviteeName,
+      booking.eventType.title,
+      booking.startTime,
+    );
+
+    res.json({ message: "Booking cancelled successfully.", booking });
   } catch (error) {
     next(error);
   }

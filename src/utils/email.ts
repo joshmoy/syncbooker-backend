@@ -130,9 +130,11 @@ export const emailService = {
     inviteeName: string,
     userName: string,
     eventTitle: string,
-    startTime: Date
+    startTime: Date,
+    cancelToken: string
   ): Promise<void> {
     const dateStr = startTime.toLocaleString();
+    const cancelLink = `${FRONTEND_URL}/cancel/${cancelToken}`;
     const html = emailTemplate(`
       <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Booking Request Received</h2>
       <p style="margin: 0 0 12px; color: #333;">Hi ${inviteeName},</p>
@@ -141,7 +143,8 @@ export const emailService = {
         <p style="margin: 0 0 8px; color: #333;"><strong>Time:</strong> ${dateStr}</p>
         <p style="margin: 0; color: #333;"><strong>Status:</strong> Pending Approval</p>
       </div>
-      <p style="margin: 0; color: #333;">You'll receive another email once <strong>${userName}</strong> has confirmed your request.</p>
+      <p style="margin: 0 0 20px; color: #333;">You'll receive another email once <strong>${userName}</strong> has confirmed your request.</p>
+      <p style="margin: 0; color: #666; font-size: 13px;">Need to cancel? <a href="${cancelLink}" style="color: #000;">Cancel this request</a></p>
     `);
 
     await this.sendEmail({
@@ -190,9 +193,11 @@ export const emailService = {
     userName: string,
     eventTitle: string,
     startTime: Date,
-    meetingLink?: string
+    meetingLink?: string,
+    cancelToken?: string
   ): Promise<void> {
     const dateStr = startTime.toLocaleString();
+    const cancelLink = cancelToken ? `${FRONTEND_URL}/cancel/${cancelToken}` : null;
     const html = emailTemplate(`
       <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Booking Confirmed!</h2>
       <p style="margin: 0 0 12px; color: #333;">Hi ${inviteeName},</p>
@@ -201,7 +206,8 @@ export const emailService = {
         <p style="margin: 0 0 8px; color: #333;"><strong>Time:</strong> ${dateStr}</p>
         ${meetingLink ? `<p style="margin: 0; color: #333;"><strong>Meeting Link:</strong> <a href="${meetingLink}" style="color: #000;">${meetingLink}</a></p>` : ""}
       </div>
-      ${meetingLink ? `<a href="${meetingLink}" style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">Join Meeting</a>` : `<p style="margin: 0; color: #333;">We've added this to your calendar.</p>`}
+      ${meetingLink ? `<a href="${meetingLink}" style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">Join Meeting</a>` : `<p style="margin: 0 0 20px; color: #333;">We've added this to your calendar.</p>`}
+      ${cancelLink ? `<p style="margin: 16px 0 0; color: #666; font-size: 13px;">Need to cancel? <a href="${cancelLink}" style="color: #000;">Cancel this booking</a></p>` : ""}
     `);
 
     await this.sendEmail({

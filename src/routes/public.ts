@@ -4,6 +4,7 @@ import {
   createBooking,
   getPublicBookings,
   getAvailableSlots,
+  cancelBookingByToken,
 } from "../controllers/bookingController";
 import { trackVisitor } from "../controllers/visitorController";
 import { bookingLimiter, visitorLimiter } from "../middleware/rateLimiter";
@@ -18,6 +19,9 @@ router.get("/event-type/:id", getPublicEventType);
 router.get("/event-type/:eventTypeId/slots", getAvailableSlots);
 router.get("/event-type/:eventTypeId/bookings", getPublicBookings);
 router.post("/book", bookingLimiter, createBookingValidators, validate, createBooking);
+
+// Invitee self-cancellation
+router.post("/cancel/:cancelToken", cancelBookingByToken);
 
 // Visitor Tracking Route
 router.post("/track-visitor", visitorLimiter, trackVisitor);

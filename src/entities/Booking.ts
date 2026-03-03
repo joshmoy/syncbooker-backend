@@ -55,6 +55,9 @@ export class Booking {
   @Column({ type: "varchar", length: 255, nullable: true })
   googleEventId!: string | null;
 
+  @Column({ type: "varchar", length: 255, nullable: true, unique: true })
+  cancelToken!: string | null;
+
   @Column({ type: "timestamp", nullable: true })
   confirmedAt!: Date | null;
 
