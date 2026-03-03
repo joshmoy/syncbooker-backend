@@ -6,7 +6,7 @@ import { EventType } from "../entities/EventType";
 import { Availability } from "../entities/Availability";
 import { AuthRequest } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
-import { addMinutes, isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
+import { addMinutes, isAfter, isBefore, isPast, startOfDay, endOfDay } from "date-fns";
 import { emailService } from "../utils/email";
 import { googleCalendarService } from "../utils/google-calendar";
 import { generateMeetingLink } from "../services/meetingLinkService";
@@ -188,6 +188,10 @@ export const updateBooking = async (
       throw new AppError("Unauthorized", 403);
     }
 
+    if (isPast(new Date(booking.startTime))) {
+      throw new AppError("Cannot modify a past booking", 400);
+    }
+
     if (status) {
       if (!Object.values(BookingStatus).includes(status)) {
         throw new AppError("Invalid booking status", 400);
@@ -278,6 +282,10 @@ export const generateMeetingLinkForBooking = async (
       throw new AppError("Unauthorized", 403);
     }
 
+    if (isPast(new Date(booking.startTime))) {
+      throw new AppError("Cannot generate a meeting link for a past booking", 400);
+    }
+
     const result = await generateMeetingLink(booking);
     booking.googleEventId = result.googleEventId;
     booking.meetingLink = result.meetingLink;
@@ -315,6 +323,10 @@ export const deleteBooking = async (
 
     if (!eventType) {
       throw new AppError("Unauthorized", 403);
+    }
+
+    if (isPast(new Date(booking.startTime))) {
+      throw new AppError("Cannot cancel a past booking", 400);
     }
 
     // Instead of removing, update status to CANCELLED
