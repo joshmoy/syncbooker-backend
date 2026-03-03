@@ -23,6 +23,7 @@ export const getUserSettings = async (
         "username",
         "displayPicture",
         "banner",
+        "googleRefreshToken",
         "createdAt",
         "updatedAt",
       ],
@@ -32,7 +33,8 @@ export const getUserSettings = async (
       throw new AppError("User not found", 404);
     }
 
-    res.json({ user });
+    const { googleRefreshToken, ...rest } = user;
+    res.json({ user: { ...rest, googleConnected: !!googleRefreshToken } });
   } catch (error) {
     next(error);
   }
