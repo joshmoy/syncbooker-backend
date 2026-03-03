@@ -256,4 +256,91 @@ export const emailService = {
       html,
     });
   },
+
+  /**
+   * Template for Meeting Reminder (24h before) — sent to invitee
+   */
+  async sendMeetingReminderToInvitee(
+    inviteeEmail: string,
+    inviteeName: string,
+    userName: string,
+    eventTitle: string,
+    startTime: Date,
+    meetingLink?: string
+  ): Promise<void> {
+    const dateStr = startTime.toLocaleString();
+    const html = emailTemplate(`
+      <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Your Meeting is Tomorrow</h2>
+      <p style="margin: 0 0 12px; color: #333;">Hi ${inviteeName},</p>
+      <p style="margin: 0 0 20px; color: #333;">Just a reminder that you have a meeting with <strong>${userName}</strong> for <strong>${eventTitle}</strong> coming up soon.</p>
+      <div style="background: #f5f5f5; padding: 16px 20px; border-radius: 8px; margin: 0 0 24px;">
+        <p style="margin: 0 0 8px; color: #333;"><strong>Time:</strong> ${dateStr}</p>
+        ${meetingLink ? `<p style="margin: 0; color: #333;"><strong>Meeting Link:</strong> <a href="${meetingLink}" style="color: #000;">${meetingLink}</a></p>` : ""}
+      </div>
+      ${meetingLink ? `<a href="${meetingLink}" style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">Join Meeting</a>` : `<p style="margin: 0; color: #333;">We'll see you then!</p>`}
+    `);
+
+    await this.sendEmail({
+      to: inviteeEmail,
+      subject: `Reminder: Meeting with ${userName} tomorrow`,
+      html,
+    });
+  },
+
+  /**
+   * Template for Meeting Reminder (24h before) — sent to host
+   */
+  async sendMeetingReminderToHost(
+    userEmail: string,
+    userName: string,
+    inviteeName: string,
+    eventTitle: string,
+    startTime: Date
+  ): Promise<void> {
+    const dateStr = startTime.toLocaleString();
+    const html = emailTemplate(`
+      <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Your Meeting is Tomorrow</h2>
+      <p style="margin: 0 0 12px; color: #333;">Hi ${userName},</p>
+      <p style="margin: 0 0 20px; color: #333;">Just a reminder that you have a meeting with <strong>${inviteeName}</strong> for <strong>${eventTitle}</strong> coming up soon.</p>
+      <div style="background: #f5f5f5; padding: 16px 20px; border-radius: 8px; margin: 0 0 24px;">
+        <p style="margin: 0; color: #333;"><strong>Time:</strong> ${dateStr}</p>
+      </div>
+      <a href="${FRONTEND_URL}/dashboard/bookings" style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">View Bookings</a>
+    `);
+
+    await this.sendEmail({
+      to: userEmail,
+      subject: `Reminder: Meeting with ${inviteeName} tomorrow`,
+      html,
+    });
+  },
+
+  /**
+   * Template for Pending Booking Nudge (to host, after 24h of inaction)
+   */
+  async sendPendingBookingNudge(
+    userEmail: string,
+    userName: string,
+    inviteeName: string,
+    eventTitle: string,
+    startTime: Date
+  ): Promise<void> {
+    const dateStr = startTime.toLocaleString();
+    const html = emailTemplate(`
+      <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Booking Request Awaiting Your Response</h2>
+      <p style="margin: 0 0 12px; color: #333;">Hi ${userName},</p>
+      <p style="margin: 0 0 20px; color: #333;">You have a pending booking request from <strong>${inviteeName}</strong> for <strong>${eventTitle}</strong> that hasn't been responded to yet.</p>
+      <div style="background: #f5f5f5; padding: 16px 20px; border-radius: 8px; margin: 0 0 24px;">
+        <p style="margin: 0 0 8px; color: #333;"><strong>Invitee:</strong> ${inviteeName}</p>
+        <p style="margin: 0; color: #333;"><strong>Requested Time:</strong> ${dateStr}</p>
+      </div>
+      <a href="${FRONTEND_URL}/dashboard/bookings" style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">Review Request</a>
+    `);
+
+    await this.sendEmail({
+      to: userEmail,
+      subject: `Action needed: Booking request from ${inviteeName}`,
+      html,
+    });
+  },
 };

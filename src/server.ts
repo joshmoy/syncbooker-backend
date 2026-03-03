@@ -14,6 +14,7 @@ import settingsRoutes from "./routes/settings";
 import publicRoutes from "./routes/public";
 import dashboardRoutes from "./routes/dashboard";
 import googleRoutes from "./routes/google";
+import { startScheduler } from "./utils/scheduler";
 
 dotenv.config();
 
@@ -61,6 +62,8 @@ const startServer = async () => {
   try {
     await AppDataSource.initialize();
     console.log("✅ Database connected successfully");
+
+    startScheduler();
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);

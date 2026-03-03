@@ -55,6 +55,12 @@ export class Booking {
   @Column({ type: "varchar", length: 255, nullable: true })
   googleEventId!: string | null;
 
+  @Column({ type: "timestamp", nullable: true })
+  meetingReminderSentAt!: Date | null;
+
+  @Column({ type: "timestamp", nullable: true })
+  pendingReminderSentAt!: Date | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 
