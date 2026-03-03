@@ -123,7 +123,7 @@ async function getAvailableSlots(eventTypeId: string, startDate?: string, endDat
 const { slots } = await getAvailableSlots(
   "550e8400-e29b-41d4-a716-446655440000",
   "2024-01-01T00:00:00Z",
-  "2024-01-31T23:59:59Z"
+  "2024-01-31T23:59:59Z",
 );
 ```
 
@@ -690,7 +690,6 @@ async function generateMeetingLink(bookingId: string, token: string) {
 
 ---
 
-
 ---
 
 ### 6a. Generate Meeting Link
@@ -855,14 +854,14 @@ export interface AvailableSlot {
 export async function getAvailableSlots(
   eventTypeId: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
 ): Promise<{ slots: AvailableSlot[] }> {
   const params = new URLSearchParams();
   if (startDate) params.append("startDate", startDate);
   if (endDate) params.append("endDate", endDate);
 
   const response = await fetch(
-    `${API_BASE_URL}/public/event-type/${eventTypeId}/slots?${params.toString()}`
+    `${API_BASE_URL}/public/event-type/${eventTypeId}/slots?${params.toString()}`,
   );
 
   if (!response.ok) {
@@ -913,7 +912,7 @@ export async function getUserBookings(token: string): Promise<{ bookings: Bookin
 export async function updateBooking(
   bookingId: string,
   data: { status?: "pending" | "confirmed" | "cancelled"; notes?: string },
-  token: string
+  token: string,
 ): Promise<{ booking: Booking }> {
   const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}`, {
     method: "PUT",

@@ -14,7 +14,7 @@ import { generateMeetingLink } from "../services/meetingLinkService";
 export const createBooking = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { eventTypeId, inviteeName, inviteeEmail, startTime, notes } = req.body;
@@ -71,7 +71,7 @@ export const createBooking = async (
       eventType.user.name,
       inviteeName,
       eventType.title,
-      start
+      start,
     );
 
     // Send email notification to invitee (visitor)
@@ -80,7 +80,7 @@ export const createBooking = async (
       inviteeName,
       eventType.user.name,
       eventType.title,
-      start
+      start,
     );
 
     res.status(201).json({
@@ -95,7 +95,7 @@ export const createBooking = async (
 export const getBookings = async (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const bookingRepository = AppDataSource.getRepository(Booking);
@@ -128,7 +128,7 @@ export const getBookings = async (
 export const getBookingById = async (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { id } = req.params;
@@ -162,7 +162,7 @@ export const getBookingById = async (
 export const updateBooking = async (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { id } = req.params;
@@ -192,9 +192,9 @@ export const updateBooking = async (
       if (!Object.values(BookingStatus).includes(status)) {
         throw new AppError("Invalid booking status", 400);
       }
-      
+
       const oldStatus = booking.status;
-      
+
       booking.status = status;
 
       // Send email notifications based on status change
@@ -211,7 +211,7 @@ export const updateBooking = async (
                 endTime: new Date(booking.endTime),
                 inviteeEmail: booking.inviteeEmail,
                 inviteeName: booking.inviteeName,
-              }
+              },
             );
             booking.googleEventId = googleEvent.googleEventId || null;
             booking.meetingLink = googleEvent.meetingLink || null;
@@ -226,7 +226,7 @@ export const updateBooking = async (
           booking.eventType.user.name,
           booking.eventType.title,
           booking.startTime,
-          booking.meetingLink || undefined // Pass meeting link to email
+          booking.meetingLink || undefined, // Pass meeting link to email
         );
       } else if (status === BookingStatus.CANCELLED) {
         await emailService.sendBookingRejectedEmail(
@@ -234,7 +234,7 @@ export const updateBooking = async (
           booking.inviteeName,
           booking.eventType.user.name,
           booking.eventType.title,
-          booking.startTime
+          booking.startTime,
         );
       }
     }
@@ -254,7 +254,7 @@ export const updateBooking = async (
 export const generateMeetingLinkForBooking = async (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { id } = req.params;
@@ -292,7 +292,7 @@ export const generateMeetingLinkForBooking = async (
 export const deleteBooking = async (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { id } = req.params;
@@ -326,7 +326,7 @@ export const deleteBooking = async (
       try {
         await googleCalendarService.deleteEvent(
           booking.eventType.user.googleRefreshToken,
-          booking.googleEventId
+          booking.googleEventId,
         );
       } catch (error) {
         console.error("Failed to delete Google Calendar event:", error);
@@ -339,7 +339,7 @@ export const deleteBooking = async (
       booking.inviteeName,
       eventType.user.name,
       eventType.title,
-      booking.startTime
+      booking.startTime,
     );
 
     res.json({ message: "Booking cancelled successfully", booking });
@@ -351,7 +351,7 @@ export const deleteBooking = async (
 export const getPublicBookings = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { eventTypeId } = req.params;
@@ -375,7 +375,7 @@ export const getPublicBookings = async (
 export const getAvailableSlots = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): Promise<void> => {
   try {
     const { eventTypeId } = req.params;
