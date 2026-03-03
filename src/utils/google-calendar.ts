@@ -12,6 +12,7 @@ const oauth2Client = new google.auth.OAuth2(
 
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 
@@ -64,6 +65,36 @@ export const googleCalendarService = {
       googleEventId: response.data.id,
       meetingLink: meetingLink,
     };
+  },
+
+  /**
+   * Check for busy periods across a set of time windows using the freebusy API.
+   * Returns an array of busy intervals that overlap with the requested windows.
+   */
+  async checkFreeBusy(
+    refreshToken: string,
+    windows: Array<{ start: Date; end: Date }>
+  ): Promise<Array<{ start: string; end: string }>> {
+    const calendar = googleAuthService.getClient(refreshToken);
+    const busy: Array<{ start: string; end: string }> = [];
+
+    for (const window of windows) {
+      const response = await calendar.freebusy.query({
+        requestBody: {
+          timeMin: window.start.toISOString(),
+          timeMax: window.end.toISOString(),
+          items: [{ id: "primary" }],
+        },
+      });
+      const periods = response.data.calendars?.["primary"]?.busy ?? [];
+      for (const period of periods) {
+        if (period.start && period.end) {
+          busy.push({ start: period.start, end: period.end });
+        }
+      }
+    }
+
+    return busy;
   },
 
   /**

@@ -1,8 +1,42 @@
 import { Response, NextFunction } from "express";
 import { AppDataSource } from "../config/data-source";
 import { Availability } from "../entities/Availability";
+import { User } from "../entities/User";
 import { AuthRequest } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
+import { googleCalendarService } from "../utils/google-calendar";
+
+/**
+ * Returns the next `count` UTC date windows for a given day-of-week + time range.
+ * dayOfWeek: 0 (Sun) – 6 (Sat), startTime/endTime: "HH:mm:ss"
+ */
+function getNextOccurrences(
+  dayOfWeek: number,
+  startTime: string,
+  endTime: string,
+  count: number
+): Array<{ start: Date; end: Date }> {
+  const [startHour, startMin] = startTime.split(":").map(Number);
+  const [endHour, endMin] = endTime.split(":").map(Number);
+
+  const now = new Date();
+  const daysUntilNext = (dayOfWeek - now.getUTCDay() + 7) % 7;
+
+  const windows: Array<{ start: Date; end: Date }> = [];
+  for (let i = 0; i < count; i++) {
+    const offset = daysUntilNext + i * 7;
+    const start = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset,
+      startHour, startMin, 0
+    ));
+    const end = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset,
+      endHour, endMin, 0
+    ));
+    windows.push({ start, end });
+  }
+  return windows;
+}
 
 export const createAvailability = async (
   req: AuthRequest,
@@ -18,6 +52,38 @@ export const createAvailability = async (
 
     if (dayOfWeek < 0 || dayOfWeek > 6) {
       throw new AppError("Day of week must be between 0 (Sunday) and 6 (Saturday)", 400);
+    }
+
+    // Check Google Calendar for conflicts if the user has connected their account
+    const userRepository = AppDataSource.getRepository(User);
+    const user = await userRepository.findOne({
+      where: { id: req.userId! },
+      select: ["id", "googleRefreshToken"],
+    });
+
+    if (user?.googleRefreshToken) {
+      try {
+        const windows = getNextOccurrences(dayOfWeek, startTime, endTime, 4);
+        const busyPeriods = await googleCalendarService.checkFreeBusy(user.googleRefreshToken, windows);
+
+        if (busyPeriods.length > 0) {
+          const conflicts = busyPeriods
+            .map((b) => {
+              const start = new Date(b.start);
+              const end = new Date(b.end);
+              return `${start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} ${start.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}–${end.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC`;
+            })
+            .join(", ");
+          throw new AppError(
+            `This time slot conflicts with events on your Google Calendar: ${conflicts}`,
+            409
+          );
+        }
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        console.error("Failed to check Google Calendar freebusy:", error);
+        // Non-fatal: if the check itself fails (e.g. token expired), proceed with save
+      }
     }
 
     const availabilityRepository = AppDataSource.getRepository(Availability);
@@ -124,5 +190,3 @@ export const deleteAvailability = async (
     next(error);
   }
 };
-
-
