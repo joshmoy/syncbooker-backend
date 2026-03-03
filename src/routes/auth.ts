@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register, login, forgotPassword, resetPassword } from "../controllers/authController";
+import { register, login, forgotPassword, resetPassword, verifyEmail, resendVerification } from "../controllers/authController";
 import { authLimiter } from "../middleware/rateLimiter";
 import {
   validate,
@@ -15,6 +15,8 @@ router.post("/register", authLimiter, registerValidators, validate, register);
 router.post("/login", authLimiter, loginValidators, validate, login);
 router.post("/forgot-password", authLimiter, forgotPasswordValidators, validate, forgotPassword);
 router.post("/reset-password", authLimiter, resetPasswordValidators, validate, resetPassword);
+router.get("/verify-email", verifyEmail);
+router.post("/resend-verification", authLimiter, resendVerification);
 
 export default router;
 

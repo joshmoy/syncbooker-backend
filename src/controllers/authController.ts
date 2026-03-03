@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
+import { v4 as uuidv4 } from "uuid";
 import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { ResetToken } from "../entities/ResetToken";
@@ -31,11 +32,14 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Create user
+    const verificationToken = uuidv4();
     const user = userRepository.create({
       name,
       email,
       passwordHash,
       username: username || email.split("@")[0],
+      emailVerified: false,
+      emailVerificationToken: verificationToken,
     });
 
     await userRepository.save(user);
@@ -43,8 +47,8 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     // Generate token
     const token = generateToken(user.id);
 
-    // Send welcome email
-    await emailService.sendWelcomeEmail(user.email, user.name);
+    // Send verification email (replaces welcome email)
+    await emailService.sendEmailVerificationEmail(user.email, user.name, verificationToken);
 
     res.status(201).json({
       message: "User registered successfully",
@@ -233,6 +237,59 @@ export const resetPassword = async (
     res.json({
       message: "Password has been reset successfully. You can now login with your new password.",
     });
+  } catch (error) {
+    next(error);
+  }
+};
+export const verifyEmail = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { token } = req.query as { token: string };
+    if (!token) throw new AppError("Verification token is required", 400);
+
+    const userRepository = AppDataSource.getRepository(User);
+    const user = await userRepository.findOne({ where: { emailVerificationToken: token } });
+
+    if (!user) throw new AppError("Invalid or expired verification token", 400);
+    if (user.emailVerified) {
+      res.json({ message: "Email already verified." });
+      return;
+    }
+
+    user.emailVerified = true;
+    user.emailVerificationToken = null;
+    await userRepository.save(user);
+
+    res.json({ message: "Email verified successfully! You can now use all features." });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resendVerification = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+    if (!email) throw new AppError("Email is required", 400);
+
+    const userRepository = AppDataSource.getRepository(User);
+    const user = await userRepository.findOne({ where: { email } });
+
+    // Always respond the same way to prevent enumeration
+    res.json({ message: "If that account exists and is unverified, a new link has been sent." });
+
+    if (!user || user.emailVerified) return;
+
+    const verificationToken = uuidv4();
+    user.emailVerificationToken = verificationToken;
+    await userRepository.save(user);
+    await emailService.sendEmailVerificationEmail(user.email, user.name, verificationToken);
   } catch (error) {
     next(error);
   }

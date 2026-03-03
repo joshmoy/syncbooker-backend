@@ -35,6 +35,12 @@ export class User {
   @Column({ type: "text", nullable: true })
   googleRefreshToken!: string | null;
 
+  @Column({ type: "boolean", default: false })
+  emailVerified!: boolean;
+
+  @Column({ type: "varchar", length: 255, nullable: true, unique: true })
+  emailVerificationToken!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 

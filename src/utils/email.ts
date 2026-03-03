@@ -379,4 +379,28 @@ export const emailService = {
       html,
     });
   },
+
+  /**
+   * Template for Email Verification
+   */
+  async sendEmailVerificationEmail(
+    email: string,
+    name: string,
+    verificationToken: string
+  ): Promise<void> {
+    const verifyLink = `${FRONTEND_URL}/verify-email?token=${verificationToken}`;
+    const html = emailTemplate(`
+      <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Verify Your Email Address</h2>
+      <p style="margin: 0 0 12px; color: #333;">Hi ${name},</p>
+      <p style="margin: 0 0 24px; color: #333;">Thanks for signing up! Please verify your email address to activate your account and start receiving booking notifications.</p>
+      <a href="${verifyLink}" style="display: inline-block; background: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">Verify Email Address</a>
+      <p style="margin: 24px 0 0; color: #666; font-size: 13px;">This link will expire in 24 hours. If you didn't create an account, you can safely ignore this email.</p>
+    `);
+
+    await this.sendEmail({
+      to: email,
+      subject: "Verify your SyncBooker email address",
+      html,
+    });
+  },
 };
