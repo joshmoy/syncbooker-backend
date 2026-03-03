@@ -46,7 +46,7 @@ export const updateUserSettings = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { name, username, password } = req.body;
+    const { name, username, password, currentPassword } = req.body;
 
     const userRepository = AppDataSource.getRepository(User);
 
@@ -88,6 +88,13 @@ export const updateUserSettings = async (
     if (password !== undefined) {
       if (!password || password.length < 6) {
         throw new AppError("Password must be at least 6 characters", 400);
+      }
+      if (!currentPassword) {
+        throw new AppError("Current password is required to set a new password", 400);
+      }
+      const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isValid) {
+        throw new AppError("Current password is incorrect", 401);
       }
       user.passwordHash = await bcrypt.hash(password, 10);
     }

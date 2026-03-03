@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import { v4 as uuidv4 } from "uuid";
+import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -114,11 +115,16 @@ export const googleAuthService = {
    * Generate the Google OAuth URL
    */
   getAuthUrl(userId: string): string {
+    const state = jwt.sign(
+      { userId },
+      process.env.JWT_SECRET || "fallback-secret",
+      { expiresIn: "10m" }
+    );
     return oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: SCOPES,
       prompt: "consent",
-      state: userId, // Pass userId to identify the user in callback
+      state,
     });
   },
 
