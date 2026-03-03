@@ -5,6 +5,7 @@ import {
   getAvailabilities,
   updateAvailability,
   deleteAvailability,
+  replaceAvailabilities,
 } from "../controllers/availabilityController";
 
 const router = Router();
@@ -14,6 +15,7 @@ router.use(authenticateToken);
 
 router.post("/", createAvailability);
 router.get("/", getAvailabilities);
+router.put("/", replaceAvailabilities);
 router.put("/:id", updateAvailability);
 router.delete("/:id", deleteAvailability);
 

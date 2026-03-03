@@ -166,6 +166,106 @@ export const updateAvailability = async (
   }
 };
 
+export const replaceAvailabilities = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { slots } = req.body as {
+      slots: Array<{
+        dayOfWeek: number;
+        startTime: string;
+        endTime: string;
+        timezone?: string;
+      }>;
+    };
+
+    if (!Array.isArray(slots)) {
+      throw new AppError("slots must be an array", 400);
+    }
+
+    for (const slot of slots) {
+      if (slot.dayOfWeek === undefined || !slot.startTime || !slot.endTime) {
+        throw new AppError(
+          "Each slot must have dayOfWeek, startTime, and endTime",
+          400
+        );
+      }
+      if (slot.dayOfWeek < 0 || slot.dayOfWeek > 6) {
+        throw new AppError(
+          "dayOfWeek must be between 0 (Sunday) and 6 (Saturday)",
+          400
+        );
+      }
+    }
+
+    // Check Google Calendar conflicts for ALL slots upfront
+    const userRepository = AppDataSource.getRepository(User);
+    const user = await userRepository.findOne({
+      where: { id: req.userId! },
+      select: ["id", "googleRefreshToken"],
+    });
+
+    if (user?.googleRefreshToken && slots.length > 0) {
+      try {
+        const allWindows = slots.flatMap((slot) =>
+          getNextOccurrences(slot.dayOfWeek, slot.startTime, slot.endTime, 4)
+        );
+        const busyPeriods = await googleCalendarService.checkFreeBusy(
+          user.googleRefreshToken,
+          allWindows
+        );
+
+        if (busyPeriods.length > 0) {
+          const conflicts = busyPeriods
+            .map((b) => {
+              const start = new Date(b.start);
+              const end = new Date(b.end);
+              return `${start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} ${start.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}–${end.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC`;
+            })
+            .join(", ");
+          throw new AppError(
+            `These time slots conflict with events on your Google Calendar: ${conflicts}`,
+            409
+          );
+        }
+      } catch (error) {
+        if (error instanceof AppError) throw error;
+        console.error("Failed to check Google Calendar freebusy:", error);
+      }
+    }
+
+    // Atomically replace all availability in a single transaction
+    await AppDataSource.transaction(async (manager) => {
+      await manager.delete(Availability, { userId: req.userId! });
+
+      if (slots.length > 0) {
+        const entities = slots.map((slot) => {
+          const entity = new Availability();
+          entity.userId = req.userId!;
+          entity.dayOfWeek = slot.dayOfWeek;
+          entity.startTime = slot.startTime;
+          entity.endTime = slot.endTime;
+          entity.timezone = slot.timezone || "UTC";
+          return entity;
+        });
+        await manager.save(entities);
+      }
+    });
+
+    const availabilityRepository = AppDataSource.getRepository(Availability);
+    const availabilities = await availabilityRepository.find({
+      where: { userId: req.userId! },
+      order: { dayOfWeek: "ASC", startTime: "ASC" },
+    });
+
+    res.json({ message: "Availability updated successfully", availabilities });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const deleteAvailability = async (
   req: AuthRequest,
   res: Response,
