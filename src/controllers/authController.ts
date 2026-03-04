@@ -24,6 +24,13 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       where: [{ email }, ...(username ? [{ username }] : [])],
     });
 
+    console.log("existingUser check:", {
+      email,
+      username,
+      found: !!existingUser,
+      foundEmail: existingUser?.email,
+    });
+
     if (existingUser) {
       throw new AppError("User with this email or username already exists", 409);
     }
