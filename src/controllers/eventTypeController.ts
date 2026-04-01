@@ -3,6 +3,20 @@ import { AppDataSource } from "../config/data-source";
 import { EventType } from "../entities/EventType";
 import { AuthRequest } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
+import {
+  generateBookingCopy,
+  type BookingCopyTone,
+} from "../services/bookingCopyAssistantService";
+
+function isBookingCopyTone(value: string): value is BookingCopyTone {
+  return [
+    "professional",
+    "friendly",
+    "consultative",
+    "sales",
+    "supportive",
+  ].includes(value);
+}
 
 export const createEventType = async (
   req: AuthRequest,
@@ -134,6 +148,51 @@ export const deleteEventType = async (
     await eventTypeRepository.remove(eventType);
 
     res.json({ message: "Event type deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const generateBookingCopySuggestions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const {
+      title,
+      durationMinutes,
+      audience,
+      goal,
+      tone,
+      additionalContext,
+      existingDescription,
+    } = req.body;
+
+    if (!title || !String(title).trim()) {
+      throw new AppError("Event title is required to generate booking copy", 400);
+    }
+
+    const result = await generateBookingCopy({
+      title: String(title).trim(),
+      durationMinutes:
+        typeof durationMinutes === "number" && Number.isFinite(durationMinutes)
+          ? durationMinutes
+          : undefined,
+      audience: typeof audience === "string" ? audience : undefined,
+      goal: typeof goal === "string" ? goal : undefined,
+      tone: typeof tone === "string" && isBookingCopyTone(tone) ? tone : undefined,
+      additionalContext:
+        typeof additionalContext === "string" ? additionalContext : undefined,
+      existingDescription:
+        typeof existingDescription === "string" ? existingDescription : undefined,
+    });
+
+    res.json({
+      message: "Booking copy generated successfully",
+      provider: result.provider,
+      suggestions: result.suggestions,
+    });
   } catch (error) {
     next(error);
   }
