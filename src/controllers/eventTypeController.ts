@@ -8,7 +8,10 @@ import {
   type BookingCopyTone,
 } from "../services/bookingCopyAssistantService";
 import { generateBookingFaqs } from "../services/bookingFaqAssistantService";
-import { generateEventTypeIdeas } from "../services/eventTypeGeneratorService";
+import {
+  generateEventTypeIdeas,
+  generateEventTypeIdeasFromAudio,
+} from "../services/eventTypeGeneratorService";
 import type { EventTypeFaq } from "../entities/EventType";
 
 function isBookingCopyTone(value: string): value is BookingCopyTone {
@@ -282,6 +285,36 @@ export const generateEventTypeSuggestions = async (
     res.json({
       message: "Event type ideas generated successfully",
       provider: result.provider,
+      suggestions: result.suggestions,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const generateEventTypeSuggestionsFromAudio = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const audioFile = req.file;
+    const { audience } = req.body;
+
+    if (!audioFile?.buffer?.length) {
+      throw new AppError("An audio recording is required to generate event type ideas", 400);
+    }
+
+    const result = await generateEventTypeIdeasFromAudio({
+      audioBuffer: audioFile.buffer,
+      mimeType: audioFile.mimetype || "audio/webm",
+      audience: typeof audience === "string" ? audience : undefined,
+    });
+
+    res.json({
+      message: "Event type ideas generated successfully from audio",
+      provider: result.provider,
+      transcript: result.transcript,
       suggestions: result.suggestions,
     });
   } catch (error) {

@@ -15,6 +15,18 @@ export interface GenerateEventTypeIdeasResult {
   suggestions: EventTypeDraft[];
 }
 
+export interface GenerateEventTypeIdeasFromAudioInput {
+  audioBuffer: Buffer;
+  mimeType: string;
+  audience?: string;
+}
+
+export interface GenerateEventTypeIdeasFromAudioResult {
+  provider: "gemini";
+  transcript: string;
+  suggestions: EventTypeDraft[];
+}
+
 const allowedDurations = [15, 30, 45, 60, 90, 120];
 const allowedColors = [
   "#3B82F6",
@@ -89,6 +101,46 @@ function tryParseSuggestionPayload(rawContent: string): EventTypeDraft[] | null 
       .slice(0, 3);
 
     return suggestions.length ? suggestions : null;
+  } catch {
+    return null;
+  }
+}
+
+function tryParseAudioSuggestionPayload(rawContent: string): {
+  transcript: string;
+  suggestions: EventTypeDraft[];
+} | null {
+  const cleaned = rawContent
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/, "");
+
+  try {
+    const parsed = JSON.parse(cleaned) as {
+      transcript?: string;
+      suggestions?: Array<Partial<EventTypeDraft>>;
+    };
+
+    if (!parsed.transcript || !Array.isArray(parsed.suggestions)) {
+      return null;
+    }
+
+    const suggestions = parsed.suggestions
+      .map((suggestion, index) => normalizeSuggestion(suggestion, index))
+      .filter((suggestion): suggestion is EventTypeDraft => Boolean(suggestion))
+      .slice(0, 3);
+
+    const transcript = sanitizeText(parsed.transcript);
+
+    if (!transcript || !suggestions.length) {
+      return null;
+    }
+
+    return {
+      transcript,
+      suggestions,
+    };
   } catch {
     return null;
   }
@@ -235,6 +287,107 @@ async function generateWithGemini(
   } catch (error) {
     console.error("Gemini event type generation error:", error);
     return null;
+  }
+}
+
+export async function generateEventTypeIdeasFromAudio(
+  input: GenerateEventTypeIdeasFromAudioInput
+): Promise<GenerateEventTypeIdeasFromAudioResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+  if (!apiKey || !model) {
+    throw new Error("Gemini is not configured for audio event generation.");
+  }
+
+  const baseUrl =
+    process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta";
+
+  const prompt = [
+    "You process a spoken voice note about booking offers.",
+    "First understand the speech in the audio, then convert it into booking event type drafts.",
+    "Return valid JSON only with this shape:",
+    '{"transcript":"...","suggestions":[{"title":"...","durationMinutes":30,"description":"...","color":"#3B82F6"}]}',
+    "Return 1 to 3 suggestions.",
+    "Allowed durationMinutes values: 15, 30, 45, 60, 90, 120.",
+    `Allowed colors: ${allowedColors.join(", ")}`,
+    "Descriptions should be 2 to 4 sentences, clear and easy to book.",
+    "Transcript should be a clean transcription of the spoken offer details.",
+    "Do not mention unsupported features like payments, deposits, questionnaires, or routing rules.",
+    `Audience: ${sanitizeText(input.audience) || "not provided"}`,
+  ].join("\n");
+
+  try {
+    const response = await fetch(`${baseUrl}/models/${model}:generateContent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text:
+                "You transcribe spoken booking offers and always respond with valid JSON.",
+            },
+          ],
+        },
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+              {
+                inline_data: {
+                  mime_type: input.mimeType,
+                  data: input.audioBuffer.toString("base64"),
+                },
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.4,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Gemini audio event generation failed:", errorText);
+      throw new Error("Gemini audio event generation failed.");
+    }
+
+    const data = (await response.json()) as {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{ text?: string }>;
+        };
+      }>;
+    };
+
+    const content = extractGeminiText(data);
+
+    if (!content) {
+      throw new Error("Gemini returned no audio generation content.");
+    }
+
+    const parsed = tryParseAudioSuggestionPayload(content);
+
+    if (!parsed) {
+      throw new Error("Gemini audio generation response could not be parsed.");
+    }
+
+    return {
+      provider: "gemini",
+      transcript: parsed.transcript,
+      suggestions: parsed.suggestions,
+    };
+  } catch (error) {
+    console.error("Gemini audio event generation error:", error);
+    throw error;
   }
 }
 
