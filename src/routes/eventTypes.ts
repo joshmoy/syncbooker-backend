@@ -8,6 +8,7 @@ import {
   deleteEventType,
   generateBookingCopySuggestions,
   generateBookingFaqSuggestions,
+  generateEventTypeSuggestions,
 } from "../controllers/eventTypeController";
 
 const router = Router();
@@ -17,6 +18,7 @@ router.use(authenticateToken);
 
 router.post("/generate-copy", generateBookingCopySuggestions);
 router.post("/generate-faqs", generateBookingFaqSuggestions);
+router.post("/generate-ideas", generateEventTypeSuggestions);
 router.post("/", createEventType);
 router.get("/", getEventTypes);
 router.get("/:id", getEventTypeById);

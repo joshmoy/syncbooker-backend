@@ -8,6 +8,7 @@ import {
   type BookingCopyTone,
 } from "../services/bookingCopyAssistantService";
 import { generateBookingFaqs } from "../services/bookingFaqAssistantService";
+import { generateEventTypeIdeas } from "../services/eventTypeGeneratorService";
 import type { EventTypeFaq } from "../entities/EventType";
 
 function isBookingCopyTone(value: string): value is BookingCopyTone {
@@ -255,6 +256,33 @@ export const generateBookingFaqSuggestions = async (
       message: "Booking FAQs generated successfully",
       provider: result.provider,
       faqs: result.faqs,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const generateEventTypeSuggestions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { prompt, audience } = req.body;
+
+    if (!prompt || !String(prompt).trim()) {
+      throw new AppError("A prompt is required to generate event type ideas", 400);
+    }
+
+    const result = await generateEventTypeIdeas({
+      prompt: String(prompt).trim(),
+      audience: typeof audience === "string" ? audience : undefined,
+    });
+
+    res.json({
+      message: "Event type ideas generated successfully",
+      provider: result.provider,
+      suggestions: result.suggestions,
     });
   } catch (error) {
     next(error);

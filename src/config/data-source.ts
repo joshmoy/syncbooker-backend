@@ -8,6 +8,9 @@ import { ResetToken } from "../entities/ResetToken";
 import { Visitor } from "../entities/Visitor";
 
 dotenv.config();
+const runtimeEnv = process.env.NODE_ENV || "development";
+const isDevelopment = runtimeEnv === "development";
+const isProduction = runtimeEnv === "production";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -16,12 +19,12 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USERNAME,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
-  synchronize: process.env.NODE_ENV === "development",
-  logging: process.env.NODE_ENV === "development",
+  synchronize: isDevelopment,
+  logging: isDevelopment,
   entities: [User, EventType, Availability, Booking, ResetToken, Visitor],
   migrations: ["src/migrations/**/*.ts"],
   subscribers: ["src/subscribers/**/*.ts"],
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  ssl: isProduction ? { rejectUnauthorized: false } : false,
   extra: {
     // Prefer IPv4 to avoid routing issues between Railway and Supabase IPv6 endpoints
     // This helps when there are network routing problems even if IPv6 is supported
