@@ -7,6 +7,8 @@ import {
   generateBookingCopy,
   type BookingCopyTone,
 } from "../services/bookingCopyAssistantService";
+import { generateBookingFaqs } from "../services/bookingFaqAssistantService";
+import type { EventTypeFaq } from "../entities/EventType";
 
 function isBookingCopyTone(value: string): value is BookingCopyTone {
   return [
@@ -18,13 +20,43 @@ function isBookingCopyTone(value: string): value is BookingCopyTone {
   ].includes(value);
 }
 
+function normalizeFaqs(value: unknown): EventTypeFaq[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const faqs = value
+    .map((faq) => {
+      if (!faq || typeof faq !== "object") {
+        return null;
+      }
+
+      const question = "question" in faq && typeof faq.question === "string"
+        ? faq.question.trim()
+        : "";
+      const answer = "answer" in faq && typeof faq.answer === "string"
+        ? faq.answer.trim()
+        : "";
+
+      if (!question || !answer) {
+        return null;
+      }
+
+      return { question, answer };
+    })
+    .filter((faq): faq is EventTypeFaq => Boolean(faq))
+    .slice(0, 4);
+
+  return faqs;
+}
+
 export const createEventType = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { title, description, durationMinutes, color } = req.body;
+    const { title, description, durationMinutes, color, faqs } = req.body;
 
     if (!title || !durationMinutes) {
       throw new AppError("Title and duration are required", 400);
@@ -38,6 +70,7 @@ export const createEventType = async (
       description,
       durationMinutes,
       color,
+      faqs: normalizeFaqs(faqs) || null,
     });
 
     await eventTypeRepository.save(eventType);
@@ -100,7 +133,7 @@ export const updateEventType = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, description, durationMinutes, color } = req.body;
+    const { title, description, durationMinutes, color, faqs } = req.body;
 
     const eventTypeRepository = AppDataSource.getRepository(EventType);
 
@@ -116,6 +149,7 @@ export const updateEventType = async (
     if (description !== undefined) eventType.description = description;
     if (durationMinutes) eventType.durationMinutes = durationMinutes;
     if (color) eventType.color = color;
+    if (faqs !== undefined) eventType.faqs = normalizeFaqs(faqs) || null;
 
     await eventTypeRepository.save(eventType);
 
@@ -198,6 +232,35 @@ export const generateBookingCopySuggestions = async (
   }
 };
 
+export const generateBookingFaqSuggestions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { title, description, businessType, audience } = req.body;
+
+    if (!title || !String(title).trim()) {
+      throw new AppError("Event title is required to generate FAQs", 400);
+    }
+
+    const result = await generateBookingFaqs({
+      title: String(title).trim(),
+      description: typeof description === "string" ? description : undefined,
+      businessType: typeof businessType === "string" ? businessType : undefined,
+      audience: typeof audience === "string" ? audience : undefined,
+    });
+
+    res.json({
+      message: "Booking FAQs generated successfully",
+      provider: result.provider,
+      faqs: result.faqs,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getPublicEventType = async (
   req: Request,
   res: Response,
@@ -224,6 +287,7 @@ export const getPublicEventType = async (
         description: eventType.description,
         durationMinutes: eventType.durationMinutes,
         color: eventType.color,
+        faqs: eventType.faqs,
         createdAt: eventType.createdAt,
         updatedAt: eventType.updatedAt,
         // Include minimal user info

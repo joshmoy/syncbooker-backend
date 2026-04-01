@@ -11,6 +11,11 @@ import {
 import { User } from "./User";
 import { Booking } from "./Booking";
 
+export interface EventTypeFaq {
+  question: string;
+  answer: string;
+}
+
 @Entity("event_types")
 export class EventType {
   @PrimaryGeneratedColumn("uuid")
@@ -35,6 +40,9 @@ export class EventType {
   @Column({ type: "varchar", length: 100, nullable: true })
   color!: string | null;
 
+  @Column({ type: "jsonb", nullable: true })
+  faqs!: EventTypeFaq[] | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 
@@ -44,5 +52,4 @@ export class EventType {
   @OneToMany(() => Booking, (booking) => booking.eventType)
   bookings!: Booking[];
 }
-
 
