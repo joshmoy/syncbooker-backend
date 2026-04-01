@@ -11,7 +11,9 @@ export const getGoogleAuthUrl = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const url = googleAuthService.getAuthUrl(req.userId!);
+    const redirectTo =
+      typeof req.query.redirectTo === "string" ? req.query.redirectTo : undefined;
+    const url = googleAuthService.getAuthUrl(req.userId!, redirectTo);
     res.json({ url });
   } catch (error) {
     next(error);
@@ -37,12 +39,14 @@ export const googleCallback = async (
     }
 
     let userId: string;
+    let redirectTo: string | undefined;
     try {
       const decoded = jwt.verify(
         state as string,
         process.env.JWT_SECRET || "fallback-secret"
-      ) as { userId: string };
+      ) as { userId: string; redirectTo?: string };
       userId = decoded.userId;
+      redirectTo = decoded.redirectTo;
     } catch {
       res.status(400).send("Invalid or expired state parameter");
       return;
@@ -57,8 +61,14 @@ export const googleCallback = async (
       });
     }
 
-    // Redirect back to frontend settings
-    res.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?google_connected=true`);
+    const safeRedirectPath =
+      redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
+        ? redirectTo
+        : "/dashboard/settings";
+    const redirectUrl = new URL(safeRedirectPath, process.env.FRONTEND_URL);
+    redirectUrl.searchParams.set("google_connected", "true");
+
+    res.redirect(redirectUrl.toString());
   } catch (error) {
     next(error);
   }

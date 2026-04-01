@@ -114,9 +114,9 @@ export const googleAuthService = {
   /**
    * Generate the Google OAuth URL
    */
-  getAuthUrl(userId: string): string {
+  getAuthUrl(userId: string, redirectTo?: string): string {
     const state = jwt.sign(
-      { userId },
+      { userId, redirectTo },
       process.env.JWT_SECRET || "fallback-secret",
       { expiresIn: "10m" }
     );
