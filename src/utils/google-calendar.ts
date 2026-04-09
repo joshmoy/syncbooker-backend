@@ -28,6 +28,7 @@ export const googleCalendarService = {
       description?: string;
       startTime: Date;
       endTime: Date;
+      timeZone?: string;
       inviteeEmail: string;
       inviteeName: string;
     }
@@ -39,9 +40,11 @@ export const googleCalendarService = {
       description: bookingDetails.description,
       start: {
         dateTime: bookingDetails.startTime.toISOString(),
+        timeZone: bookingDetails.timeZone,
       },
       end: {
         dateTime: bookingDetails.endTime.toISOString(),
+        timeZone: bookingDetails.timeZone,
       },
       attendees: [{ email: bookingDetails.inviteeEmail, displayName: bookingDetails.inviteeName }],
       conferenceData: {

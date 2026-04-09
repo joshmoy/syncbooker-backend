@@ -39,6 +39,9 @@ export class Booking {
   @Column({ type: "timestamp" })
   endTime!: Date;
 
+  @Column({ type: "varchar", length: 50, default: "UTC" })
+  timezone!: string;
+
   @Column({
     type: "enum",
     enum: BookingStatus,
@@ -76,5 +79,4 @@ export class Booking {
   @UpdateDateColumn()
   updatedAt!: Date;
 }
-
 

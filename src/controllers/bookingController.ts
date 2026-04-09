@@ -11,6 +11,10 @@ import { addMinutes, isAfter, isBefore, isPast } from "date-fns";
 import { emailService } from "../utils/email";
 import { googleCalendarService } from "../utils/google-calendar";
 import { generateMeetingLink } from "../services/meetingLinkService";
+import {
+  findAvailabilityForDateTimeRange,
+  getAvailabilityWindowsInRange,
+} from "../utils/timezone";
 
 export const createBooking = async (
   req: Request,
@@ -26,6 +30,7 @@ export const createBooking = async (
 
     const eventTypeRepository = AppDataSource.getRepository(EventType);
     const bookingRepository = AppDataSource.getRepository(Booking);
+    const availabilityRepository = AppDataSource.getRepository(Availability);
 
     // Get event type
     const eventType = await eventTypeRepository.findOne({
@@ -39,6 +44,18 @@ export const createBooking = async (
 
     const start = new Date(startTime);
     const end = addMinutes(start, eventType.durationMinutes);
+    const availabilities = await availabilityRepository.find({
+      where: { userId: eventType.userId },
+    });
+    const matchingAvailability = findAvailabilityForDateTimeRange(
+      availabilities,
+      start,
+      end,
+    );
+
+    if (!matchingAvailability) {
+      throw new AppError("This time slot is no longer available", 409);
+    }
 
     // Check for conflicts (both CONFIRMED and PENDING bookings reserve the slot)
     const conflictingBooking = await bookingRepository.findOne({
@@ -60,6 +77,7 @@ export const createBooking = async (
       inviteeEmail,
       startTime: start,
       endTime: end,
+      timezone: matchingAvailability.timezone,
       status: BookingStatus.PENDING,
       notes,
       cancelToken: uuidv4(),
@@ -74,6 +92,7 @@ export const createBooking = async (
       inviteeName,
       eventType.title,
       start,
+      matchingAvailability.timezone,
     );
 
     // Send email notification to invitee (visitor)
@@ -83,6 +102,7 @@ export const createBooking = async (
       eventType.user.name,
       eventType.title,
       start,
+      matchingAvailability.timezone,
       booking.cancelToken!,
     );
 
@@ -217,6 +237,7 @@ export const updateBooking = async (
                 description: booking.notes || undefined,
                 startTime: new Date(booking.startTime),
                 endTime: new Date(booking.endTime),
+                timeZone: booking.timezone,
                 inviteeEmail: booking.inviteeEmail,
                 inviteeName: booking.inviteeName,
               },
@@ -234,6 +255,7 @@ export const updateBooking = async (
           booking.eventType.user.name,
           booking.eventType.title,
           booking.startTime,
+          booking.timezone,
           booking.meetingLink || undefined,
           booking.cancelToken || undefined,
         );
@@ -244,6 +266,7 @@ export const updateBooking = async (
           booking.eventType.user.name,
           booking.eventType.title,
           booking.startTime,
+          booking.timezone,
         );
       }
     }
@@ -357,6 +380,7 @@ export const deleteBooking = async (
       eventType.user.name,
       eventType.title,
       booking.startTime,
+      booking.timezone,
     );
 
     res.json({ message: "Booking cancelled successfully", booking });
@@ -436,47 +460,30 @@ export const getAvailableSlots = async (
       ? new Date(endDate as string)
       : addMinutes(rangeStart, 30 * 24 * 60); // 30 days
 
-    // Group availabilities by day of week (a day can have multiple windows)
-    const availabilityByDay = new Map<number, Availability[]>();
-    for (const avail of availabilities) {
-      if (!availabilityByDay.has(avail.dayOfWeek)) {
-        availabilityByDay.set(avail.dayOfWeek, []);
-      }
-      availabilityByDay.get(avail.dayOfWeek)!.push(avail);
-    }
+    const slots: { startTime: Date; endTime: Date; timezone: string }[] = [];
 
-    const slots: { startTime: Date; endTime: Date }[] = [];
+    for (const availability of availabilities) {
+      const windows = getAvailabilityWindowsInRange(
+        availability,
+        rangeStart,
+        rangeEnd,
+      );
 
-    // Start from the beginning of rangeStart day in UTC
-    const cursor = new Date(
-      Date.UTC(rangeStart.getUTCFullYear(), rangeStart.getUTCMonth(), rangeStart.getUTCDate())
-    );
+      for (const window of windows) {
+        let slotStart = new Date(window.start);
 
-    while (cursor <= rangeEnd) {
-      const dayOfWeek = cursor.getUTCDay();
-      const dayAvailabilities = availabilityByDay.get(dayOfWeek) ?? [];
-
-      for (const avail of dayAvailabilities) {
-        // Parse "HH:mm:ss" availability windows (stored in UTC)
-        const [startHour, startMin] = avail.startTime.split(":").map(Number);
-        const [endHour, endMin] = avail.endTime.split(":").map(Number);
-
-        const windowStart = new Date(
-          Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), startHour, startMin, 0)
-        );
-        const windowEnd = new Date(
-          Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), cursor.getUTCDate(), endHour, endMin, 0)
-        );
-
-        // Generate slots that fit entirely within this availability window
-        let slotStart = new Date(windowStart);
-        while (slotStart < windowEnd) {
+        while (slotStart < window.end) {
           const slotEnd = addMinutes(slotStart, eventType.durationMinutes);
 
-          if (slotEnd > windowEnd) break; // slot doesn't fit
+          if (slotEnd > window.end) {
+            break;
+          }
 
-          if (isAfter(slotStart, now)) {
-            // Proper overlap check: slot conflicts if slotStart < bookingEnd AND slotEnd > bookingStart
+          if (
+            isAfter(slotStart, now) &&
+            !isBefore(slotStart, rangeStart) &&
+            !isAfter(slotStart, rangeEnd)
+          ) {
             const hasConflict = bookings.some(
               (b) =>
                 isBefore(slotStart, new Date(b.endTime)) &&
@@ -484,17 +491,20 @@ export const getAvailableSlots = async (
             );
 
             if (!hasConflict) {
-              slots.push({ startTime: new Date(slotStart), endTime: new Date(slotEnd) });
+              slots.push({
+                startTime: new Date(slotStart),
+                endTime: new Date(slotEnd),
+                timezone: window.timeZone,
+              });
             }
           }
 
           slotStart = addMinutes(slotStart, eventType.durationMinutes);
         }
       }
-
-      // Advance to next day
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
+
+    slots.sort((left, right) => left.startTime.getTime() - right.startTime.getTime());
 
     res.json({ slots });
   } catch (error) {
@@ -516,6 +526,7 @@ export const rescheduleBooking = async (
     }
 
     const bookingRepository = AppDataSource.getRepository(Booking);
+    const availabilityRepository = AppDataSource.getRepository(Availability);
 
     const booking = await bookingRepository.findOne({
       where: { id },
@@ -541,6 +552,18 @@ export const rescheduleBooking = async (
     }
 
     const newEnd = addMinutes(newStart, booking.eventType.durationMinutes);
+    const availabilities = await availabilityRepository.find({
+      where: { userId: booking.eventType.userId },
+    });
+    const matchingAvailability = findAvailabilityForDateTimeRange(
+      availabilities,
+      newStart,
+      newEnd,
+    );
+
+    if (!matchingAvailability) {
+      throw new AppError("This time slot is no longer available", 409);
+    }
 
     // Check for conflicts with other bookings (excluding this one)
     const conflict = await bookingRepository.findOne({
@@ -558,6 +581,7 @@ export const rescheduleBooking = async (
 
     booking.startTime = newStart;
     booking.endTime = newEnd;
+    booking.timezone = matchingAvailability.timezone;
     booking.rescheduledAt = new Date();
     booking.meetingReminderSentAt = null; // reset so reminder fires for the new time
     await bookingRepository.save(booking);
@@ -569,6 +593,7 @@ export const rescheduleBooking = async (
       booking.eventType.user.name,
       booking.eventType.title,
       newStart,
+      booking.timezone,
       booking.meetingLink ?? undefined
     );
 
@@ -627,6 +652,7 @@ export const cancelBookingByToken = async (
       booking.inviteeName,
       booking.eventType.title,
       booking.startTime,
+      booking.timezone,
     );
 
     res.json({ message: "Booking cancelled successfully.", booking });

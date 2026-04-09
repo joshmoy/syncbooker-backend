@@ -5,38 +5,12 @@ import { User } from "../entities/User";
 import { AuthRequest } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
 import { googleCalendarService } from "../utils/google-calendar";
-
-/**
- * Returns the next `count` UTC date windows for a given day-of-week + time range.
- * dayOfWeek: 0 (Sun) – 6 (Sat), startTime/endTime: "HH:mm:ss"
- */
-function getNextOccurrences(
-  dayOfWeek: number,
-  startTime: string,
-  endTime: string,
-  count: number
-): Array<{ start: Date; end: Date }> {
-  const [startHour, startMin] = startTime.split(":").map(Number);
-  const [endHour, endMin] = endTime.split(":").map(Number);
-
-  const now = new Date();
-  const daysUntilNext = (dayOfWeek - now.getUTCDay() + 7) % 7;
-
-  const windows: Array<{ start: Date; end: Date }> = [];
-  for (let i = 0; i < count; i++) {
-    const offset = daysUntilNext + i * 7;
-    const start = new Date(Date.UTC(
-      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset,
-      startHour, startMin, 0
-    ));
-    const end = new Date(Date.UTC(
-      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offset,
-      endHour, endMin, 0
-    ));
-    windows.push({ start, end });
-  }
-  return windows;
-}
+import {
+  formatConflictWindow,
+  getNextOccurrences,
+  isValidTimeZone,
+  normalizeTimeZone,
+} from "../utils/timezone";
 
 export const createAvailability = async (
   req: AuthRequest,
@@ -45,6 +19,7 @@ export const createAvailability = async (
 ): Promise<void> => {
   try {
     const { dayOfWeek, startTime, endTime, timezone } = req.body;
+    const normalizedTimeZone = normalizeTimeZone(timezone);
 
     if (dayOfWeek === undefined || !startTime || !endTime) {
       throw new AppError("Day of week, start time, and end time are required", 400);
@@ -52,6 +27,10 @@ export const createAvailability = async (
 
     if (dayOfWeek < 0 || dayOfWeek > 6) {
       throw new AppError("Day of week must be between 0 (Sunday) and 6 (Saturday)", 400);
+    }
+
+    if (timezone && !isValidTimeZone(timezone)) {
+      throw new AppError("Timezone must be a valid IANA timezone", 400);
     }
 
     // Check Google Calendar for conflicts if the user has connected their account
@@ -63,7 +42,13 @@ export const createAvailability = async (
 
     if (user?.googleRefreshToken) {
       try {
-        const windows = getNextOccurrences(dayOfWeek, startTime, endTime, 4);
+        const windows = getNextOccurrences(
+          dayOfWeek,
+          startTime,
+          endTime,
+          4,
+          normalizedTimeZone,
+        );
         const busyPeriods = await googleCalendarService.checkFreeBusy(user.googleRefreshToken, windows);
 
         if (busyPeriods.length > 0) {
@@ -71,7 +56,7 @@ export const createAvailability = async (
             .map((b) => {
               const start = new Date(b.start);
               const end = new Date(b.end);
-              return `${start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} ${start.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}–${end.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC`;
+              return formatConflictWindow(start, end, normalizedTimeZone);
             })
             .join(", ");
           throw new AppError(
@@ -93,7 +78,7 @@ export const createAvailability = async (
       dayOfWeek,
       startTime,
       endTime,
-      timezone: timezone || "UTC",
+      timezone: normalizedTimeZone,
     });
 
     await availabilityRepository.save(availability);
@@ -153,7 +138,12 @@ export const updateAvailability = async (
     }
     if (startTime) availability.startTime = startTime;
     if (endTime) availability.endTime = endTime;
-    if (timezone) availability.timezone = timezone;
+    if (timezone) {
+      if (!isValidTimeZone(timezone)) {
+        throw new AppError("Timezone must be a valid IANA timezone", 400);
+      }
+      availability.timezone = timezone;
+    }
 
     await availabilityRepository.save(availability);
 
@@ -198,6 +188,9 @@ export const replaceAvailabilities = async (
           400
         );
       }
+      if (slot.timezone && !isValidTimeZone(slot.timezone)) {
+        throw new AppError("Each timezone must be a valid IANA timezone", 400);
+      }
     }
 
     // Check Google Calendar conflicts for ALL slots upfront
@@ -210,7 +203,13 @@ export const replaceAvailabilities = async (
     if (user?.googleRefreshToken && slots.length > 0) {
       try {
         const allWindows = slots.flatMap((slot) =>
-          getNextOccurrences(slot.dayOfWeek, slot.startTime, slot.endTime, 4)
+          getNextOccurrences(
+            slot.dayOfWeek,
+            slot.startTime,
+            slot.endTime,
+            4,
+            slot.timezone,
+          )
         );
         const busyPeriods = await googleCalendarService.checkFreeBusy(
           user.googleRefreshToken,
@@ -222,7 +221,7 @@ export const replaceAvailabilities = async (
             .map((b) => {
               const start = new Date(b.start);
               const end = new Date(b.end);
-              return `${start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} ${start.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}–${end.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC`;
+              return formatConflictWindow(start, end, slots[0]?.timezone);
             })
             .join(", ");
           throw new AppError(
@@ -247,7 +246,7 @@ export const replaceAvailabilities = async (
           entity.dayOfWeek = slot.dayOfWeek;
           entity.startTime = slot.startTime;
           entity.endTime = slot.endTime;
-          entity.timezone = slot.timezone || "UTC";
+          entity.timezone = normalizeTimeZone(slot.timezone);
           return entity;
         });
         await manager.save(entities);

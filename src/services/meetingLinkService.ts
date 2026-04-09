@@ -25,6 +25,7 @@ export async function generateMeetingLink(booking: Booking): Promise<MeetingLink
       description: booking.notes || undefined,
       startTime: new Date(booking.startTime),
       endTime: new Date(booking.endTime),
+      timeZone: booking.timezone,
       inviteeEmail: booking.inviteeEmail,
       inviteeName: booking.inviteeName,
     }

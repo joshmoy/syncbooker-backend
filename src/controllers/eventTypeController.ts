@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { AppDataSource } from "../config/data-source";
+import { Availability } from "../entities/Availability";
 import { EventType } from "../entities/EventType";
 import { AuthRequest } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
@@ -13,6 +14,7 @@ import {
   generateEventTypeIdeasFromAudio,
 } from "../services/eventTypeGeneratorService";
 import type { EventTypeFaq } from "../entities/EventType";
+import { getPrimaryTimeZone } from "../utils/timezone";
 
 function isBookingCopyTone(value: string): value is BookingCopyTone {
   return [
@@ -330,6 +332,7 @@ export const getPublicEventType = async (
   try {
     const { id } = req.params;
     const eventTypeRepository = AppDataSource.getRepository(EventType);
+    const availabilityRepository = AppDataSource.getRepository(Availability);
 
     const eventType = await eventTypeRepository.findOne({
       where: { id },
@@ -340,6 +343,11 @@ export const getPublicEventType = async (
       throw new AppError("Event type not found", 404);
     }
 
+    const availabilities = await availabilityRepository.find({
+      where: { userId: eventType.userId },
+      order: { createdAt: "ASC" },
+    });
+
     // Return public-safe event type information
     res.json({
       eventType: {
@@ -349,6 +357,7 @@ export const getPublicEventType = async (
         durationMinutes: eventType.durationMinutes,
         color: eventType.color,
         faqs: eventType.faqs,
+        timezone: getPrimaryTimeZone(availabilities),
         createdAt: eventType.createdAt,
         updatedAt: eventType.updatedAt,
         // Include minimal user info

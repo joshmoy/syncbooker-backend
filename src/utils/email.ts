@@ -1,5 +1,6 @@
 import axios from "axios";
 import dotenv from "dotenv";
+import { formatDateTimeInTimeZone } from "./timezone";
 
 dotenv.config();
 
@@ -100,9 +101,10 @@ export const emailService = {
     userName: string,
     inviteeName: string,
     eventTitle: string,
-    startTime: Date
+    startTime: Date,
+    timeZone?: string
   ): Promise<void> {
-    const dateStr = startTime.toLocaleString();
+    const dateStr = formatDateTimeInTimeZone(startTime, timeZone);
     const html = emailTemplate(`
       <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">New Booking Request</h2>
       <p style="margin: 0 0 12px; color: #333;">Hi ${userName},</p>
@@ -131,9 +133,10 @@ export const emailService = {
     userName: string,
     eventTitle: string,
     startTime: Date,
+    timeZone: string | undefined,
     cancelToken: string
   ): Promise<void> {
-    const dateStr = startTime.toLocaleString();
+    const dateStr = formatDateTimeInTimeZone(startTime, timeZone);
     const cancelLink = `${FRONTEND_URL}/cancel/${cancelToken}`;
     const html = emailTemplate(`
       <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Booking Request Received</h2>
@@ -163,9 +166,10 @@ export const emailService = {
     userName: string,
     eventTitle: string,
     newStartTime: Date,
+    timeZone?: string,
     meetingLink?: string
   ): Promise<void> {
-    const dateStr = newStartTime.toLocaleString();
+    const dateStr = formatDateTimeInTimeZone(newStartTime, timeZone);
     const html = emailTemplate(`
       <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Your Meeting Has Been Rescheduled</h2>
       <p style="margin: 0 0 12px; color: #333;">Hi ${inviteeName},</p>
@@ -193,10 +197,11 @@ export const emailService = {
     userName: string,
     eventTitle: string,
     startTime: Date,
+    timeZone?: string,
     meetingLink?: string,
     cancelToken?: string
   ): Promise<void> {
-    const dateStr = startTime.toLocaleString();
+    const dateStr = formatDateTimeInTimeZone(startTime, timeZone);
     const cancelLink = cancelToken ? `${FRONTEND_URL}/cancel/${cancelToken}` : null;
     const html = emailTemplate(`
       <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Booking Confirmed!</h2>
@@ -225,9 +230,10 @@ export const emailService = {
     inviteeName: string,
     userName: string,
     eventTitle: string,
-    startTime: Date
+    startTime: Date,
+    timeZone?: string
   ): Promise<void> {
-    const dateStr = startTime.toLocaleString();
+    const dateStr = formatDateTimeInTimeZone(startTime, timeZone);
     const html = emailTemplate(`
       <h2 style="margin: 0 0 16px; font-size: 22px; color: #111;">Booking Cancelled</h2>
       <p style="margin: 0 0 12px; color: #333;">Hi ${inviteeName},</p>
