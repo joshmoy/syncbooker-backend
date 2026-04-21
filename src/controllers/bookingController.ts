@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { In, Not } from "typeorm";
+import { In } from "typeorm";
 import { v4 as uuidv4 } from "uuid";
 import { AppDataSource } from "../config/data-source";
 import { Booking, BookingStatus } from "../entities/Booking";
@@ -16,6 +16,19 @@ import {
   getAvailabilityWindowsInRange,
 } from "../utils/timezone";
 
+// Postgres SQLSTATE for exclusion_violation — raised when the
+// `bookings_no_overlap` EXCLUDE constraint rejects an overlapping booking.
+const PG_EXCLUSION_VIOLATION = "23P01";
+
+const isOverlapConstraintViolation = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") return false;
+  const err = error as { code?: string; constraint?: string };
+  return (
+    err.code === PG_EXCLUSION_VIOLATION ||
+    err.constraint === "bookings_no_overlap"
+  );
+};
+
 export const createBooking = async (
   req: Request,
   res: Response,
@@ -29,7 +42,6 @@ export const createBooking = async (
     }
 
     const eventTypeRepository = AppDataSource.getRepository(EventType);
-    const bookingRepository = AppDataSource.getRepository(Booking);
     const availabilityRepository = AppDataSource.getRepository(Availability);
 
     // Get event type
@@ -57,33 +69,57 @@ export const createBooking = async (
       throw new AppError("This time slot is no longer available", 409);
     }
 
-    // Check for conflicts (both CONFIRMED and PENDING bookings reserve the slot)
-    const conflictingBooking = await bookingRepository.findOne({
-      where: {
-        eventTypeId,
-        startTime: start,
-        status: In([BookingStatus.CONFIRMED, BookingStatus.PENDING]),
-      },
-    });
+    // Create the booking inside a transaction. The DB-level exclusion
+    // constraint (`bookings_no_overlap`) is the source of truth for
+    // preventing overlaps: two concurrent requests that both pass the
+    // application-level overlap check cannot both succeed here.
+    let booking: Booking;
+    try {
+      booking = await AppDataSource.transaction(async (manager) => {
+        const txBookings = manager.getRepository(Booking);
 
-    if (conflictingBooking) {
-      throw new AppError("This time slot is already booked or pending approval", 409);
+        // Overlap check: existing non-cancelled booking whose interval
+        // intersects [start, end) for this event type.
+        const conflictingBooking = await txBookings
+          .createQueryBuilder("booking")
+          .where("booking.eventTypeId = :eventTypeId", { eventTypeId })
+          .andWhere("booking.status IN (:...statuses)", {
+            statuses: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
+          })
+          .andWhere("booking.startTime < :end", { end })
+          .andWhere("booking.endTime > :start", { start })
+          .getOne();
+
+        if (conflictingBooking) {
+          throw new AppError(
+            "This time slot is already booked or pending approval",
+            409,
+          );
+        }
+
+        const newBooking = txBookings.create({
+          eventTypeId,
+          inviteeName,
+          inviteeEmail,
+          startTime: start,
+          endTime: end,
+          timezone: matchingAvailability.timezone,
+          status: BookingStatus.PENDING,
+          notes,
+          cancelToken: uuidv4(),
+        });
+
+        return txBookings.save(newBooking);
+      });
+    } catch (err) {
+      if (isOverlapConstraintViolation(err)) {
+        throw new AppError(
+          "This time slot is already booked or pending approval",
+          409,
+        );
+      }
+      throw err;
     }
-
-    // Create booking
-    const booking = bookingRepository.create({
-      eventTypeId,
-      inviteeName,
-      inviteeEmail,
-      startTime: start,
-      endTime: end,
-      timezone: matchingAvailability.timezone,
-      status: BookingStatus.PENDING,
-      notes,
-      cancelToken: uuidv4(),
-    });
-
-    await bookingRepository.save(booking);
 
     // Send email notification to user
     await emailService.sendBookingRequestEmail(
@@ -565,26 +601,43 @@ export const rescheduleBooking = async (
       throw new AppError("This time slot is no longer available", 409);
     }
 
-    // Check for conflicts with other bookings (excluding this one)
-    const conflict = await bookingRepository.findOne({
-      where: {
-        id: Not(id),
-        eventTypeId: booking.eventTypeId,
-        status: In([BookingStatus.CONFIRMED, BookingStatus.PENDING]),
-        startTime: newStart,
-      },
-    });
+    // Run the overlap check and the update inside one transaction. The
+    // DB-level exclusion constraint (`bookings_no_overlap`) guarantees
+    // correctness even if two rescheduling requests race.
+    try {
+      await AppDataSource.transaction(async (manager) => {
+        const txBookings = manager.getRepository(Booking);
 
-    if (conflict) {
-      throw new AppError("This time slot is already booked", 409);
+        const conflict = await txBookings
+          .createQueryBuilder("booking")
+          .where("booking.id != :id", { id })
+          .andWhere("booking.eventTypeId = :eventTypeId", {
+            eventTypeId: booking.eventTypeId,
+          })
+          .andWhere("booking.status IN (:...statuses)", {
+            statuses: [BookingStatus.CONFIRMED, BookingStatus.PENDING],
+          })
+          .andWhere("booking.startTime < :newEnd", { newEnd })
+          .andWhere("booking.endTime > :newStart", { newStart })
+          .getOne();
+
+        if (conflict) {
+          throw new AppError("This time slot is already booked", 409);
+        }
+
+        booking.startTime = newStart;
+        booking.endTime = newEnd;
+        booking.timezone = matchingAvailability.timezone;
+        booking.rescheduledAt = new Date();
+        booking.meetingReminderSentAt = null; // reset so reminder fires for the new time
+        await txBookings.save(booking);
+      });
+    } catch (err) {
+      if (isOverlapConstraintViolation(err)) {
+        throw new AppError("This time slot is already booked", 409);
+      }
+      throw err;
     }
-
-    booking.startTime = newStart;
-    booking.endTime = newEnd;
-    booking.timezone = matchingAvailability.timezone;
-    booking.rescheduledAt = new Date();
-    booking.meetingReminderSentAt = null; // reset so reminder fires for the new time
-    await bookingRepository.save(booking);
 
     // Notify invitee of the new time
     await emailService.sendBookingRescheduledEmail(
