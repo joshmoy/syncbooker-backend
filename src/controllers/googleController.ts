@@ -4,6 +4,7 @@ import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { AuthRequest } from "../middleware/auth";
 import { googleAuthService } from "../utils/google-calendar";
+import { getJwtSecret } from "../utils/jwt";
 
 export const getGoogleAuthUrl = async (
   req: AuthRequest,
@@ -41,10 +42,10 @@ export const googleCallback = async (
     let userId: string;
     let redirectTo: string | undefined;
     try {
-      const decoded = jwt.verify(
-        state as string,
-        process.env.JWT_SECRET || "fallback-secret"
-      ) as { userId: string; redirectTo?: string };
+      const decoded = jwt.verify(state as string, getJwtSecret()) as {
+        userId: string;
+        redirectTo?: string;
+      };
       userId = decoded.userId;
       redirectTo = decoded.redirectTo;
     } catch {

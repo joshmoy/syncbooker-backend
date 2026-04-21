@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import { v4 as uuidv4 } from "uuid";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import { getJwtSecret } from "./jwt";
 
 dotenv.config();
 
@@ -118,11 +119,9 @@ export const googleAuthService = {
    * Generate the Google OAuth URL
    */
   getAuthUrl(userId: string, redirectTo?: string): string {
-    const state = jwt.sign(
-      { userId, redirectTo },
-      process.env.JWT_SECRET || "fallback-secret",
-      { expiresIn: "10m" }
-    );
+    const state = jwt.sign({ userId, redirectTo }, getJwtSecret(), {
+      expiresIn: "10m",
+    });
     return oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: SCOPES,

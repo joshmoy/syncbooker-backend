@@ -24,13 +24,6 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       where: [{ email }, ...(username ? [{ username }] : [])],
     });
 
-    console.log("existingUser check:", {
-      email,
-      username,
-      found: !!existingUser,
-      foundEmail: existingUser?.email,
-    });
-
     if (existingUser) {
       throw new AppError("User with this email or username already exists", 409);
     }
@@ -170,16 +163,6 @@ export const forgotPassword = async (
 
     // Send email with reset link
     await emailService.sendPasswordResetEmail(user.email, resetToken);
-
-    // For debugging, log the token (REMOVE IN PRODUCTION!)
-    console.log("Password reset token for", email, ":", resetToken);
-    console.log(
-      "Reset link:",
-      `${process.env.FRONTEND_URL || "http://localhost:3001"}/reset-password?token=${resetToken}`
-    );
-
-    // In production, send email using your email service (Maileroo, etc.)
-    // await sendPasswordResetEmail(user.email, resetToken);
   } catch (error) {
     next(error);
   }

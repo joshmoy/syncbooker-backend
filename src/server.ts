@@ -19,6 +19,17 @@ import { generalLimiter } from "./middleware/rateLimiter";
 
 dotenv.config();
 
+// Fail fast on missing critical configuration so we never boot with an
+// insecure fallback (e.g. a predictable JWT signing key).
+const REQUIRED_ENV_VARS = ["JWT_SECRET"] as const;
+const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+if (missingEnvVars.length > 0) {
+  console.error(
+    `❌ Missing required environment variables: ${missingEnvVars.join(", ")}`
+  );
+  process.exit(1);
+}
+
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
 
