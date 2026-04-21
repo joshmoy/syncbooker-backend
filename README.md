@@ -38,20 +38,35 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` and fill in your configuration:
+The server validates its configuration at boot and prints a feature summary.
+The following are **required** — the server will refuse to start without them:
 
-- Database connection details (Supabase)
-- JWT secret
-- Supabase Storage configuration (SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_DISPLAY_PICTURE_BUCKET, SUPABASE_BANNER_BUCKET)
-- Email configuration (optional)
-- Google Calendar API credentials (optional)
+- `DB_HOST`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` — PostgreSQL connection
+- `JWT_SECRET` — any long random string; used to sign auth tokens
 
-4. Initialize the database: The database will be automatically synchronized in development mode. For production, use migrations:
+Everything else is **optional** and degrades gracefully when unset:
+
+- **Supabase Storage** (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_DISPLAY_PICTURE_BUCKET`, `SUPABASE_BANNER_BUCKET`) — required only if you want avatar/banner uploads. If unset, upload endpoints return `503` and the rest of the app works.
+- **Email** (`MAILEROO_API_KEY`) — required to actually send password-reset and booking emails. Without it, emails are skipped and logged.
+- **Google Calendar** (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`) — required for Google Calendar sync and auto-generated Meet links on confirm.
+- **AI assistant** (`GEMINI_API_KEY`) — required for the AI copy, FAQ, and event-type generator endpoints. Without it, those endpoints return empty suggestions.
+
+See `.env.example` for the full list and inline documentation.
+
+4. Initialize the database:
+
+In `development`, TypeORM auto-syncs the schema from the entity classes,
+so simple schema changes don't need migrations. However, some features
+(e.g. the booking no-overlap exclusion constraint) ship as raw SQL in
+migration files and must be applied explicitly — even in dev:
 
 ```bash
-npm run migration:generate -- -n InitialMigration
 npm run migration:run
 ```
+
+For production (where `synchronize` is off) this is the only way schema
+changes are applied, so include it in your deploy pipeline before starting
+the server.
 
 5. Start the development server:
 
@@ -138,16 +153,8 @@ Authorization: Bearer <token>
 
 ## 📝 Environment Variables
 
-See `.env.example` for all required environment variables.
-
-## 🚧 Next Steps
-
-- [ ] Email notifications (Maileroo integration)
-- [ ] Google Calendar sync
-- [ ] Enhanced slot calculation logic
-- [ ] Timezone handling improvements
-- [ ] Public booking page routes
-- [ ] ICS file generation for calendar invites
+See `.env.example` for the full list of environment variables, grouped by
+feature and annotated with which are required vs. optional.
 
 ## 📄 License
 

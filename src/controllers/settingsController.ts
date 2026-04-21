@@ -4,7 +4,25 @@ import { AppDataSource } from "../config/data-source";
 import { User } from "../entities/User";
 import { AuthRequest } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
-import { supabaseStorage, DISPLAY_PICTURE_BUCKET, BANNER_BUCKET } from "../config/supabase";
+import {
+  getSupabaseStorage,
+  isSupabaseStorageConfigured,
+} from "../config/supabase";
+
+/**
+ * Resolve the Supabase storage client for an upload handler, or throw a
+ * 503 AppError if storage is not configured. Keeps the server healthy when
+ * the uploads feature hasn't been set up.
+ */
+const requireStorage = () => {
+  if (!isSupabaseStorageConfigured()) {
+    throw new AppError(
+      "File uploads are not configured on this server.",
+      503
+    );
+  }
+  return getSupabaseStorage();
+};
 
 export const getUserSettings = async (
   req: AuthRequest,
@@ -135,6 +153,8 @@ export const uploadDisplayPicture = async (
       throw new AppError("No file uploaded", 400);
     }
 
+    const { client, displayPictureBucket } = requireStorage();
+
     const userRepository = AppDataSource.getRepository(User);
     const user = await userRepository.findOne({
       where: { id: req.userId! },
@@ -149,8 +169,8 @@ export const uploadDisplayPicture = async (
     const fileName = `${req.userId}-${Date.now()}.${fileExt}`;
 
     // Upload to Supabase storage
-    const { data, error } = await supabaseStorage.storage
-      .from(DISPLAY_PICTURE_BUCKET)
+    const { error } = await client.storage
+      .from(displayPictureBucket)
       .upload(fileName, req.file.buffer, {
         contentType: req.file.mimetype,
         upsert: false,
@@ -160,12 +180,12 @@ export const uploadDisplayPicture = async (
       // Provide more helpful error messages
       if (error.message.includes("Bucket not found") || error.message.includes("not found")) {
         throw new AppError(
-          `Storage bucket "${DISPLAY_PICTURE_BUCKET}" not found. Please verify the bucket name in your .env file matches the bucket name in Supabase Storage.`,
+          `Storage bucket "${displayPictureBucket}" not found. Please verify the bucket name in your .env file matches the bucket name in Supabase Storage.`,
           500
         );
       }
       throw new AppError(
-        `Failed to upload file to bucket "${DISPLAY_PICTURE_BUCKET}": ${error.message}`,
+        `Failed to upload file to bucket "${displayPictureBucket}": ${error.message}`,
         500
       );
     }
@@ -173,13 +193,13 @@ export const uploadDisplayPicture = async (
     // Get public URL
     const {
       data: { publicUrl },
-    } = supabaseStorage.storage.from(DISPLAY_PICTURE_BUCKET).getPublicUrl(fileName);
+    } = client.storage.from(displayPictureBucket).getPublicUrl(fileName);
 
     // Delete old display picture if it exists
     if (user.displayPicture) {
       const oldFileName = user.displayPicture.split("/").pop();
       if (oldFileName) {
-        await supabaseStorage.storage.from(DISPLAY_PICTURE_BUCKET).remove([oldFileName]);
+        await client.storage.from(displayPictureBucket).remove([oldFileName]);
       }
     }
 
@@ -206,6 +226,8 @@ export const uploadBanner = async (
       throw new AppError("No file uploaded", 400);
     }
 
+    const { client, bannerBucket } = requireStorage();
+
     const userRepository = AppDataSource.getRepository(User);
     const user = await userRepository.findOne({
       where: { id: req.userId! },
@@ -220,8 +242,8 @@ export const uploadBanner = async (
     const fileName = `${req.userId}-${Date.now()}.${fileExt}`;
 
     // Upload to Supabase storage
-    const { data, error } = await supabaseStorage.storage
-      .from(BANNER_BUCKET)
+    const { error } = await client.storage
+      .from(bannerBucket)
       .upload(fileName, req.file.buffer, {
         contentType: req.file.mimetype,
         upsert: false,
@@ -231,12 +253,12 @@ export const uploadBanner = async (
       // Provide more helpful error messages
       if (error.message.includes("Bucket not found") || error.message.includes("not found")) {
         throw new AppError(
-          `Storage bucket "${BANNER_BUCKET}" not found. Please verify the bucket name in your .env file matches the bucket name in Supabase Storage.`,
+          `Storage bucket "${bannerBucket}" not found. Please verify the bucket name in your .env file matches the bucket name in Supabase Storage.`,
           500
         );
       }
       throw new AppError(
-        `Failed to upload file to bucket "${BANNER_BUCKET}": ${error.message}`,
+        `Failed to upload file to bucket "${bannerBucket}": ${error.message}`,
         500
       );
     }
@@ -244,13 +266,13 @@ export const uploadBanner = async (
     // Get public URL
     const {
       data: { publicUrl },
-    } = supabaseStorage.storage.from(BANNER_BUCKET).getPublicUrl(fileName);
+    } = client.storage.from(bannerBucket).getPublicUrl(fileName);
 
     // Delete old banner if it exists
     if (user.banner) {
       const oldFileName = user.banner.split("/").pop();
       if (oldFileName) {
-        await supabaseStorage.storage.from(BANNER_BUCKET).remove([oldFileName]);
+        await client.storage.from(bannerBucket).remove([oldFileName]);
       }
     }
 
@@ -290,12 +312,15 @@ export const removeDisplayPicture = async (
     const urlParts = user.displayPicture.split("/");
     const fileName = urlParts[urlParts.length - 1];
 
-    // Delete file from Supabase storage
-    const { error } = await supabaseStorage.storage.from(DISPLAY_PICTURE_BUCKET).remove([fileName]);
-
-    if (error) {
-      // Log error but continue to remove from database
-      console.error(`Failed to delete file from storage: ${error.message}`);
+    // Delete file from Supabase storage if configured. If not, we still
+    // clear the DB field below so the user can remove a stale URL.
+    if (isSupabaseStorageConfigured()) {
+      const { client, displayPictureBucket } = getSupabaseStorage();
+      const { error } = await client.storage.from(displayPictureBucket).remove([fileName]);
+      if (error) {
+        // Log error but continue to remove from database
+        console.error(`Failed to delete file from storage: ${error.message}`);
+      }
     }
 
     // Remove from database
@@ -333,12 +358,15 @@ export const removeBanner = async (
     const urlParts = user.banner.split("/");
     const fileName = urlParts[urlParts.length - 1];
 
-    // Delete file from Supabase storage
-    const { error } = await supabaseStorage.storage.from(BANNER_BUCKET).remove([fileName]);
-
-    if (error) {
-      // Log error but continue to remove from database
-      console.error(`Failed to delete file from storage: ${error.message}`);
+    // Delete file from Supabase storage if configured. If not, we still
+    // clear the DB field below so the user can remove a stale URL.
+    if (isSupabaseStorageConfigured()) {
+      const { client, bannerBucket } = getSupabaseStorage();
+      const { error } = await client.storage.from(bannerBucket).remove([fileName]);
+      if (error) {
+        // Log error but continue to remove from database
+        console.error(`Failed to delete file from storage: ${error.message}`);
+      }
     }
 
     // Remove from database

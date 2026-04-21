@@ -5,7 +5,6 @@ import { formatDateTimeInTimeZone } from "./timezone";
 dotenv.config();
 
 const MAILEROO_API_KEY = process.env.MAILEROO_API_KEY;
-const MAILEROO_DOMAIN_ID = process.env.MAILEROO_DOMAIN_ID;
 const EMAIL_FROM_ADDRESS = process.env.EMAIL_FROM || "noreply@syncbooker.anniversaryhelper.com";
 const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || "SyncBooker";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3001";

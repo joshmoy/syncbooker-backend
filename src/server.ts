@@ -19,15 +19,77 @@ import { generalLimiter } from "./middleware/rateLimiter";
 
 dotenv.config();
 
-// Fail fast on missing critical configuration so we never boot with an
-// insecure fallback (e.g. a predictable JWT signing key).
-const REQUIRED_ENV_VARS = ["JWT_SECRET"] as const;
+// ─── Environment validation ────────────────────────────────────────────────
+//
+// 1) Hard-require the variables the server cannot function without. Missing
+//    any of these stops the boot with a clear message rather than producing
+//    a cryptic runtime crash later.
+// 2) For feature-gated integrations (email, storage, Google, AI), log a
+//    readable summary of what's enabled so ops can spot silent misconfig.
+
+const REQUIRED_ENV_VARS = [
+  "JWT_SECRET",
+  "DB_HOST",
+  "DB_USERNAME",
+  "DB_PASSWORD",
+  "DB_DATABASE",
+] as const;
+
 const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
 if (missingEnvVars.length > 0) {
   console.error(
     `❌ Missing required environment variables: ${missingEnvVars.join(", ")}`
   );
   process.exit(1);
+}
+
+type OptionalFeature = {
+  name: string;
+  vars: string[];
+  whenDisabled: string;
+};
+
+const OPTIONAL_FEATURES: OptionalFeature[] = [
+  {
+    name: "Email notifications (Maileroo)",
+    vars: ["MAILEROO_API_KEY"],
+    whenDisabled: "outbound emails will be skipped",
+  },
+  {
+    name: "Avatar/banner uploads (Supabase Storage)",
+    vars: [
+      "SUPABASE_URL",
+      "SUPABASE_ANON_KEY",
+      "SUPABASE_DISPLAY_PICTURE_BUCKET",
+      "SUPABASE_BANNER_BUCKET",
+    ],
+    whenDisabled: "upload endpoints will return 503",
+  },
+  {
+    name: "Google Calendar integration",
+    vars: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"],
+    whenDisabled: "users cannot connect Google Calendar",
+  },
+  {
+    name: "AI assistant (Gemini)",
+    vars: ["GEMINI_API_KEY"],
+    whenDisabled: "AI copy/FAQ endpoints will return no suggestions",
+  },
+];
+
+for (const feature of OPTIONAL_FEATURES) {
+  const missing = feature.vars.filter((key) => !process.env[key]);
+  if (missing.length === 0) {
+    console.log(`✅ ${feature.name}: enabled`);
+  } else if (missing.length === feature.vars.length) {
+    console.warn(
+      `⚠️  ${feature.name}: disabled — ${feature.whenDisabled} (missing ${missing.join(", ")})`
+    );
+  } else {
+    console.warn(
+      `⚠️  ${feature.name}: partially configured — set ${missing.join(", ")} to fully enable`
+    );
+  }
 }
 
 const app: Express = express();

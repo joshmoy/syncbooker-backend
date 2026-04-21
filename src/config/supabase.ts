@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -9,32 +9,44 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const displayPictureBucket = process.env.SUPABASE_DISPLAY_PICTURE_BUCKET;
 const bannerBucket = process.env.SUPABASE_BANNER_BUCKET;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    "Missing Supabase configuration. Please set SUPABASE_URL and SUPABASE_ANON_KEY in your .env file"
-  );
+/**
+ * Whether all Supabase storage env vars required for avatar/banner uploads
+ * are present. We deliberately DO NOT throw at import time — uploads are
+ * a feature, not a prerequisite for the server to boot.
+ */
+const configured = Boolean(
+  supabaseUrl && supabaseAnonKey && displayPictureBucket && bannerBucket
+);
+
+let cachedStorageClient: SupabaseClient | null = null;
+if (configured) {
+  // Prefer the service role key for storage writes when available; fall back
+  // to the anon key, which only works if bucket policies allow it.
+  const storageKey = supabaseServiceKey || supabaseAnonKey!;
+  cachedStorageClient = createClient(supabaseUrl!, storageKey);
 }
 
-// Use service role key for storage operations if available, otherwise use anon key
-const storageKey = supabaseServiceKey || supabaseAnonKey;
+export const isSupabaseStorageConfigured = (): boolean => configured;
 
-if (!displayPictureBucket) {
-  throw new Error(
-    "Missing Supabase display picture bucket name. Please set SUPABASE_DISPLAY_PICTURE_BUCKET in your .env file"
-  );
-}
-
-if (!bannerBucket) {
-  throw new Error(
-    "Missing Supabase banner bucket name. Please set SUPABASE_BANNER_BUCKET in your .env file"
-  );
-}
-
-// Client for general operations (uses anon key)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// Client for storage operations (uses service role key if available for better permissions)
-export const supabaseStorage = createClient(supabaseUrl, storageKey);
-
-export const DISPLAY_PICTURE_BUCKET = displayPictureBucket;
-export const BANNER_BUCKET = bannerBucket;
+/**
+ * Returns the Supabase storage client and configured bucket names.
+ * Throws if Supabase is not configured; callers should gate this behind
+ * `isSupabaseStorageConfigured()` and return a clean 503 to the client.
+ */
+export const getSupabaseStorage = (): {
+  client: SupabaseClient;
+  displayPictureBucket: string;
+  bannerBucket: string;
+} => {
+  if (!configured || !cachedStorageClient) {
+    throw new Error(
+      "Supabase storage is not configured. Set SUPABASE_URL, SUPABASE_ANON_KEY, " +
+        "SUPABASE_DISPLAY_PICTURE_BUCKET, and SUPABASE_BANNER_BUCKET in .env to enable uploads."
+    );
+  }
+  return {
+    client: cachedStorageClient,
+    displayPictureBucket: displayPictureBucket!,
+    bannerBucket: bannerBucket!,
+  };
+};
